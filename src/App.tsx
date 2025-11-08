@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
+import './styles/CollegesMap.css';
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AppLayout } from "./components/layout/AppLayout";
 import HomePage from "./pages/HomePage";
+import CollegesMap from "@/pages/CollegesMap.tsx";
 import AuthPage from "./pages/AuthPage";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -49,6 +51,7 @@ const App = () => (
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/profile/:id" element={<ProfilePage />} />
               <Route path="/events" element={<EventsPage />} />
+              <Route path="/map" element={<CollegesMap />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/settings" element={<SettingsPage />} />

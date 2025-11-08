@@ -1,4 +1,4 @@
-import { Home, Calendar, Search, FolderKanban, Bell, Settings, Plus, PenSquare, User, LogOut } from 'lucide-react';
+import { Home, Calendar, Search, FolderKanban, Bell, Settings, Plus, PenSquare, User, LogOut, Map } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { CreatePostDialog } from '@/components/CreatePostDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export const Sidebar = () => {
+  const navigate = useNavigate();
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [showPostForm, setShowPostForm] = useState(false);
   const { user, signOut } = useAuth();
@@ -37,6 +38,7 @@ export const Sidebar = () => {
   }, [user?.id]);
 
   const navItems = [
+    { title: 'Map View', url: '/map', icon: Map },
     { title: 'Home', url: '/', icon: Home },
     { title: 'Events', url: '/events', icon: Calendar },
     { title: 'Search', url: '/search', icon: Search },
