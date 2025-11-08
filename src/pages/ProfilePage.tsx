@@ -16,6 +16,8 @@ interface Profile {
   username: string;
   college: string;
   skills: string[];
+  experience?: string;
+  achievements?: string[];
   github_url: string;
   linkedin_url: string;
 }
@@ -32,13 +34,10 @@ export default function ProfilePage() {
     linkedin_url: '',
     skillInput: '',
     skills: [] as string[],
+    experience: '',
+    achievementInput: '',
+    achievements: [] as string[],
   });
-
-  useEffect(() => {
-    if (id) {
-      fetchProfile();
-    }
-  }, [id]);
 
   const fetchProfile = async () => {
     const { data } = await supabase
@@ -48,17 +47,30 @@ export default function ProfilePage() {
       .single();
 
     if (data) {
-      setProfile(data);
+      const profileData = data as Profile;
+      setProfile(profileData);
       setEditForm({
-        username: data.username,
-        college: data.college || '',
-        github_url: data.github_url || '',
-        linkedin_url: data.linkedin_url || '',
+        username: profileData.username,
+        college: profileData.college || '',
+        github_url: profileData.github_url || '',
+        linkedin_url: profileData.linkedin_url || '',
         skillInput: '',
-        skills: data.skills || [],
+        skills: profileData.skills || [],
+        experience: profileData.experience || '',
+        achievementInput: '',
+        achievements: profileData.achievements || [],
       });
     }
   };
+
+  useEffect(() => {
+    if (id) {
+      fetchProfile();
+    }
+    // fetchProfile is defined in this module and depends on `id` via closure.
+    // We intentionally omit it from the dependency list to keep the call semantics simple.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handleSave = async () => {
     try {
@@ -70,6 +82,8 @@ export default function ProfilePage() {
           github_url: editForm.github_url,
           linkedin_url: editForm.linkedin_url,
           skills: editForm.skills,
+          experience: editForm.experience,
+          achievements: editForm.achievements,
         })
         .eq('id', user?.id);
 
@@ -78,8 +92,9 @@ export default function ProfilePage() {
       toast.success('Profile updated!');
       setIsEditing(false);
       fetchProfile();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update profile');
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error(msg || 'Failed to update profile');
     }
   };
 
@@ -97,6 +112,26 @@ export default function ProfilePage() {
     setEditForm({
       ...editForm,
       skills: editForm.skills.filter(s => s !== skill),
+    });
+  };
+
+  const addAchievement = () => {
+    if (
+      editForm.achievementInput.trim() &&
+      !editForm.achievements.includes(editForm.achievementInput.trim())
+    ) {
+      setEditForm({
+        ...editForm,
+        achievements: [...editForm.achievements, editForm.achievementInput.trim()],
+        achievementInput: '',
+      });
+    }
+  };
+
+  const removeAchievement = (achievement: string) => {
+    setEditForm({
+      ...editForm,
+      achievements: editForm.achievements.filter(a => a !== achievement),
     });
   };
 
@@ -203,6 +238,51 @@ export default function ProfilePage() {
                   ))}
                 </div>
               </div>
+              <div>
+                <Label>Experience</Label>
+                <textarea
+                  value={editForm.experience}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, experience: e.target.value })
+                  }
+                  placeholder="Describe your experience, internships, projects, etc."
+                  className="w-full p-2 border rounded mt-2"
+                  rows={4}
+                />
+              </div>
+
+              <div>
+                <Label>Achievements</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={editForm.achievementInput}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, achievementInput: e.target.value })
+                    }
+                    placeholder="Add an achievement"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addAchievement();
+                      }
+                    }}
+                  />
+                  <Button type="button" onClick={addAchievement} variant="outline">
+                    Add
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {editForm.achievements.map((ach) => (
+                    <Badge key={ach} variant="secondary" className="gap-1">
+                      {ach}
+                      <X
+                        className="h-3 w-3 cursor-pointer"
+                        onClick={() => removeAchievement(ach)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <Button onClick={handleSave}>Save Changes</Button>
                 <Button variant="outline" onClick={() => setIsEditing(false)}>
@@ -221,6 +301,30 @@ export default function ProfilePage() {
                     </Badge>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2">Experience</h3>
+                {profile.experience ? (
+                  <p className="text-sm text-muted-foreground">{profile.experience}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No experience listed.</p>
+                )}
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2">Achievements</h3>
+                {profile.achievements && profile.achievements.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {profile.achievements.map((ach) => (
+                      <Badge key={ach} variant="secondary">
+                        {ach}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No achievements listed.</p>
+                )}
               </div>
 
               <div className="flex gap-4">
