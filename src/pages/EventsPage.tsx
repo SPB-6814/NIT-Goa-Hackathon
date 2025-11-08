@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { LayoutGrid, CalendarDays, ArrowLeft, Sparkles } from 'lucide-react';
 import { EventCard } from '@/components/EventCard';
 import { EventsCalendar } from '@/components/EventsCalendar';
-import { EventDetailModal } from '@/components/EventDetailModal';
-import { supabase } from '@/integrations/supabase/client';
+import { EventPosterModal } from '@/components/EventPosterModal';
+import { DateEventsModal } from '@/components/DateEventsModal';
 import { toast } from 'sonner';
 
 interface Event {
@@ -14,43 +14,101 @@ interface Event {
   event_date: string;
   location: string;
   event_type: string;
-  brochure_url?: string;
+  poster_url?: string;
   registration_url?: string;
 }
 
 type ViewMode = 'cards' | 'calendar';
 
+// Hardcoded events with poster URLs
+const HARDCODED_EVENTS: Event[] = [
+  {
+    id: '1',
+    title: 'HackNIT 2025',
+    description: 'Annual hackathon bringing together the brightest minds to solve real-world problems',
+    event_date: '2025-11-15',
+    location: 'NIT Goa Campus',
+    event_type: 'hackathon',
+    poster_url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=800&fit=crop',
+    registration_url: 'https://example.com/register/hacknit2025',
+  },
+  {
+    id: '2',
+    title: 'AI/ML Workshop Series',
+    description: 'Hands-on workshop covering latest trends in artificial intelligence and machine learning',
+    event_date: '2025-11-20',
+    location: 'Computer Lab, Block A',
+    event_type: 'workshop',
+    poster_url: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=800&fit=crop',
+    registration_url: 'https://example.com/register/aiml-workshop',
+  },
+  {
+    id: '3',
+    title: 'Code Sprint Championship',
+    description: 'Competitive programming competition with exciting prizes and challenges',
+    event_date: '2025-11-22',
+    location: 'Auditorium Hall',
+    event_type: 'competition',
+    poster_url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=800&fit=crop',
+    registration_url: 'https://example.com/register/code-sprint',
+  },
+  {
+    id: '4',
+    title: 'Tech Confluence 2025',
+    description: 'Annual tech conference featuring industry leaders and innovative startups',
+    event_date: '2025-11-25',
+    location: 'Convention Center',
+    event_type: 'conference',
+    poster_url: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=600&h=800&fit=crop',
+    registration_url: 'https://example.com/register/tech-confluence',
+  },
+  {
+    id: '5',
+    title: 'Web Development Bootcamp',
+    description: 'Intensive 3-day bootcamp on modern web development frameworks and best practices',
+    event_date: '2025-11-28',
+    location: 'Lab 201, IT Block',
+    event_type: 'workshop',
+    poster_url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600&h=800&fit=crop',
+    registration_url: 'https://example.com/register/webdev-bootcamp',
+  },
+  {
+    id: '6',
+    title: 'Innovation Challenge 2025',
+    description: 'Showcase your innovative ideas and compete for funding and mentorship opportunities',
+    event_date: '2025-12-05',
+    location: 'Innovation Hub',
+    event_type: 'competition',
+    poster_url: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600&h=800&fit=crop',
+    registration_url: 'https://example.com/register/innovation-challenge',
+  },
+];
+
 export default function EventsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  const [events, setEvents] = useState<Event[]>([]);
+  const [events] = useState<Event[]>(HARDCODED_EVENTS);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [showEventModal, setShowEventModal] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [showPosterModal, setShowPosterModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDateEvents, setSelectedDateEvents] = useState<Event[]>([]);
+  const [showDateEventsModal, setShowDateEventsModal] = useState(false);
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  const fetchEvents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('events' as any)
-        .select('*')
-        .order('event_date', { ascending: true });
-
-      if (error) throw error;
-      setEvents((data as any) || []);
-    } catch (error) {
-      console.error('Error fetching events:', error);
-      toast.error('Failed to load events');
-    } finally {
-      setLoading(false);
-    }
+  const handlePosterClick = (event: Event) => {
+    setSelectedEvent(event);
+    setShowPosterModal(true);
   };
 
-  const handleEventClick = (event: Event) => {
-    setSelectedEvent(event);
-    setShowEventModal(true);
+  const handleInterested = (event: Event) => {
+    toast.success(`Marked as interested in ${event.title}!`, {
+      description: 'You\'ll receive updates about this event.',
+      icon: '⭐',
+    });
+  };
+
+  const handleDateClick = (date: Date, dateEvents: Event[]) => {
+    setSelectedDate(date);
+    setSelectedDateEvents(dateEvents);
+    setShowDateEventsModal(true);
   };
 
   return (
@@ -104,52 +162,42 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Loading State */}
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-          <p className="mt-4 text-muted-foreground">Loading events...</p>
-        </div>
-      ) : (
-        <>
-          {/* Card View */}
-          {viewMode === 'cards' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {events.length > 0 ? (
-                events.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                    onClick={() => handleEventClick(event)}
-                  />
-                ))
-              ) : (
-                <div className="col-span-full text-center py-12">
-                  <Sparkles className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
-                  <p className="text-xl text-muted-foreground">No events found</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Check back later for upcoming events!
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Calendar View */}
-          {viewMode === 'calendar' && (
-            <EventsCalendar 
-              events={events} 
-              onEventClick={handleEventClick}
+      {/* Card View - 3 Column Grid */}
+      {viewMode === 'cards' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+          {events.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              onPosterClick={() => handlePosterClick(event)}
+              onInterested={() => handleInterested(event)}
             />
-          )}
-        </>
+          ))}
+        </div>
       )}
 
-      {/* Event Detail Modal */}
-      <EventDetailModal
+      {/* Calendar View */}
+      {viewMode === 'calendar' && (
+        <EventsCalendar 
+          events={events} 
+          onDateClick={handleDateClick}
+        />
+      )}
+
+      {/* Event Poster Modal - Maximized View */}
+      <EventPosterModal
         event={selectedEvent}
-        open={showEventModal}
-        onOpenChange={setShowEventModal}
+        open={showPosterModal}
+        onOpenChange={setShowPosterModal}
+      />
+
+      {/* Date Events Modal - Grid of events on a specific date */}
+      <DateEventsModal
+        events={selectedDateEvents}
+        date={selectedDate}
+        open={showDateEventsModal}
+        onOpenChange={setShowDateEventsModal}
+        onEventClick={handlePosterClick}
       />
     </div>
   );

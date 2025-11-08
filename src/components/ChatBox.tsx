@@ -5,14 +5,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send } from 'lucide-react';
+import { Send, Paperclip, Download, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 interface Message {
   id: string;
   content: string;
   created_at: string;
   user_id: string;
+  file_url?: string;
+  file_name?: string;
   profiles: {
     username: string;
   };
@@ -25,8 +28,10 @@ interface ChatBoxProps {
 export const ChatBox = ({ projectId }: ChatBoxProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [uploading, setUploading] = useState(false);
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchMessages();
@@ -74,6 +79,57 @@ export const ChatBox = ({ projectId }: ChatBoxProps) => {
     setMessages(data || []);
   };
 
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Check file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must be less than 10MB');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      // Upload to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${projectId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-files')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-files')
+        .getPublicUrl(filePath);
+
+      // Send message with file
+      await supabase.from('messages').insert({
+        content: newMessage.trim() || `Shared a file: ${file.name}`,
+        project_id: projectId,
+        user_id: user.id,
+        file_url: publicUrl,
+        file_name: file.name,
+      });
+
+      setNewMessage('');
+      toast.success('File uploaded successfully');
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !user) return;
 
@@ -108,6 +164,23 @@ export const ChatBox = ({ projectId }: ChatBoxProps) => {
             }`}>
               <p className="text-sm font-medium mb-1">{message.profiles.username}</p>
               <p className="text-sm">{message.content}</p>
+              
+              {/* File attachment */}
+              {message.file_url && (
+                <a
+                  href={message.file_url}
+                  download={message.file_name}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 mt-2 p-2 rounded bg-background/10 hover:bg-background/20 transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="text-xs truncate max-w-[200px]">
+                    {message.file_name || 'Download file'}
+                  </span>
+                </a>
+              )}
+              
               <p className="text-xs opacity-70 mt-1">
                 {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
               </p>
@@ -118,17 +191,39 @@ export const ChatBox = ({ projectId }: ChatBoxProps) => {
       </div>
 
       <div className="p-4 border-t flex gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileSelect}
+          className="hidden"
+          accept="*/*"
+        />
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          title="Attach file"
+        >
+          {uploading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Paperclip className="h-4 w-4" />
+          )}
+        </Button>
         <Input
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Type a message..."
+          disabled={uploading}
           onKeyPress={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
               sendMessage();
             }
           }}
         />
-        <Button onClick={sendMessage} size="icon">
+        <Button onClick={sendMessage} size="icon" disabled={uploading}>
           <Send className="h-4 w-4" />
         </Button>
       </div>

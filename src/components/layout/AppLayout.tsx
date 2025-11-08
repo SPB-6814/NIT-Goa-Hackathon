@@ -1,5 +1,6 @@
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
+import { FloatingChatButton } from '@/components/chat/FloatingChatButton';
 import { Outlet } from 'react-router-dom';
 
 export const AppLayout = () => {
@@ -12,6 +13,7 @@ export const AppLayout = () => {
           <Outlet />
         </main>
       </div>
+      <FloatingChatButton />
     </div>
   );
 };

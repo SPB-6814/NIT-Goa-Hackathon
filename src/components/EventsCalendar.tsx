@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ChevronLeft, ChevronRight, Sparkles, Calendar, MapPin } from 'lucide-react';
 import { 
   format, 
   startOfMonth, 
@@ -21,14 +21,16 @@ interface Event {
   title: string;
   event_date: string;
   event_type: string;
+  poster_url?: string;
+  location?: string;
 }
 
 interface EventsCalendarProps {
   events: Event[];
-  onEventClick: (event: Event) => void;
+  onDateClick: (date: Date, events: Event[]) => void;
 }
 
-export function EventsCalendar({ events, onEventClick }: EventsCalendarProps) {
+export function EventsCalendar({ events, onDateClick }: EventsCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const monthStart = startOfMonth(currentMonth);
@@ -112,11 +114,12 @@ export function EventsCalendar({ events, onEventClick }: EventsCalendarProps) {
               <div
                 key={idx}
                 className={`
-                  min-h-[100px] p-2 rounded-xl border-2 transition-all duration-300
+                  min-h-[140px] p-2 rounded-xl border-2 transition-all duration-300 relative
                   ${isCurrentMonth ? 'bg-card border-border' : 'bg-muted/30 border-transparent opacity-40'}
                   ${isToday ? 'border-primary shadow-glow-sm' : ''}
-                  ${dayEvents.length > 0 ? 'hover:shadow-glow-md hover:scale-105 cursor-pointer' : ''}
+                  ${dayEvents.length > 0 ? 'hover:shadow-glow-md cursor-pointer' : ''}
                 `}
+                onClick={() => dayEvents.length > 0 && onDateClick(day, dayEvents)}
               >
                 <div className={`
                   text-sm font-semibold mb-2
@@ -126,41 +129,65 @@ export function EventsCalendar({ events, onEventClick }: EventsCalendarProps) {
                 </div>
 
                 {dayEvents.length > 0 && (
-                  <div className="space-y-1">
-                    {dayEvents.slice(0, 2).map(event => (
-                      <Badge
-                        key={event.id}
-                        className={`w-full justify-start text-[10px] px-2 py-1 cursor-pointer bg-gradient-to-r ${getTypeColor(event.event_type)} text-white border-0 hover:scale-105 transition-transform`}
-                        onClick={() => onEventClick(event)}
-                      >
-                        <span className="truncate">{event.title}</span>
-                      </Badge>
-                    ))}
-                    {dayEvents.length > 2 && (
-                      <div className="text-[10px] text-muted-foreground text-center">
-                        +{dayEvents.length - 2} more
-                      </div>
-                    )}
-                  </div>
+                  <TooltipProvider>
+                    <div className="space-y-1">
+                      {/* Stacked mini poster cards with reduced size */}
+                      {dayEvents.slice(0, 2).map((event, eventIdx) => (
+                        <Tooltip key={event.id} delayDuration={200}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={`
+                                relative w-full h-12 rounded-md overflow-hidden border border-primary/30 shadow-sm
+                                transition-all hover:shadow-glow-md hover:scale-105 hover:z-10
+                              `}
+                              style={{
+                                marginTop: eventIdx > 0 ? '4px' : '0',
+                              }}
+                            >
+                              <img
+                                src={event.poster_url || 'https://via.placeholder.com/300x400?text=Event'}
+                                alt={event.title}
+                                className="w-full h-full object-cover"
+                              />
+                              {/* Gradient overlay */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                              {/* Event title on image */}
+                              <div className="absolute bottom-0 left-0 right-0 p-1">
+                                <p className="text-white text-[9px] font-semibold truncate leading-tight">
+                                  {event.title}
+                                </p>
+                              </div>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs">
+                            <div className="space-y-1">
+                              <p className="font-bold text-sm">{event.title}</p>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                {format(new Date(event.event_date), 'MMM d, yyyy')}
+                              </div>
+                              {event.location && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <MapPin className="h-3 w-3" />
+                                  {event.location}
+                                </div>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                      
+                      {dayEvents.length > 2 && (
+                        <div className="text-[10px] text-center font-semibold text-primary mt-1 py-1">
+                          +{dayEvents.length - 2} more
+                        </div>
+                      )}
+                    </div>
+                  </TooltipProvider>
                 )}
               </div>
             );
           })}
-        </div>
-      </Card>
-
-      {/* Legend */}
-      <Card className="p-4">
-        <p className="text-sm font-semibold mb-3">Event Types</p>
-        <div className="flex flex-wrap gap-2">
-          {['Hackathon', 'Workshop', 'Competition', 'Conference'].map(type => (
-            <Badge 
-              key={type}
-              className={`bg-gradient-to-r ${getTypeColor(type)} text-white border-0 px-3 py-1`}
-            >
-              {type}
-            </Badge>
-          ))}
         </div>
       </Card>
     </div>

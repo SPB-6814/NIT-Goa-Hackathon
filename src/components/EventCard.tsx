@@ -1,7 +1,6 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, ExternalLink } from 'lucide-react';
+import { Calendar, MapPin, Star } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Event {
@@ -11,82 +10,69 @@ interface Event {
   event_date: string;
   location: string;
   event_type: string;
-  brochure_url?: string;
+  poster_url?: string;
   registration_url?: string;
 }
 
 interface EventCardProps {
   event: Event;
-  onClick: () => void;
+  onPosterClick: () => void;
+  onInterested: () => void;
 }
 
-export function EventCard({ event, onClick }: EventCardProps) {
+export function EventCard({ event, onPosterClick, onInterested }: EventCardProps) {
   const eventDate = new Date(event.event_date);
-  
-  const getTypeColor = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'hackathon': return 'bg-gradient-to-r from-primary to-accent';
-      case 'workshop': return 'bg-gradient-to-r from-accent to-destructive';
-      case 'competition': return 'bg-gradient-to-r from-success to-primary';
-      case 'conference': return 'bg-gradient-to-r from-accent to-primary';
-      default: return 'bg-primary';
-    }
-  };
 
   return (
-    <Card 
-      className="card-interactive cursor-pointer group hover:scale-[1.02] transition-all duration-300"
-      onClick={onClick}
-    >
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <CardTitle className="text-xl group-hover:text-primary transition-colors">
-              {event.title}
-            </CardTitle>
-            <CardDescription className="mt-2 line-clamp-2">
-              {event.description}
-            </CardDescription>
-          </div>
-          <Badge className={`${getTypeColor(event.event_type)} text-white border-0 font-semibold px-3 py-1`}>
-            {event.event_type}
-          </Badge>
+    <Card className="overflow-hidden group hover:shadow-glow-lg transition-all duration-300 hover:scale-[1.02] bg-card border-2 border-border">
+      {/* Poster Image - Clickable */}
+      <div 
+        className="relative w-full aspect-[3/4] overflow-hidden cursor-pointer"
+        onClick={onPosterClick}
+      >
+        <img
+          src={event.poster_url || 'https://via.placeholder.com/600x800?text=Event+Poster'}
+          alt={event.title}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        
+        {/* Hover overlay with title */}
+        <div className="absolute inset-x-0 bottom-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+          <h3 className="text-white font-bold text-lg line-clamp-2">{event.title}</h3>
         </div>
-      </CardHeader>
-      
-      <CardContent>
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 text-sm">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Calendar className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-semibold">{format(eventDate, 'MMMM d, yyyy')}</p>
-              <p className="text-xs text-muted-foreground">{format(eventDate, 'EEEE')}</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 text-sm">
-            <div className="h-10 w-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <MapPin className="h-5 w-5 text-accent" />
-            </div>
-            <p className="font-medium">{event.location}</p>
-          </div>
+      </div>
 
-          <Button 
-            variant="gradient" 
-            size="pill" 
-            className="w-full mt-2 font-semibold group-hover:shadow-glow-lg"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClick();
-            }}
-          >
-            View Details
-            <ExternalLink className="ml-2 h-4 w-4" />
-          </Button>
+      {/* Footer with Date, Location, and Interested Button */}
+      <div className="p-4 space-y-3 bg-gradient-to-b from-card to-card/80">
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <div className="flex items-center gap-2 flex-1">
+            <Calendar className="h-4 w-4 text-primary flex-shrink-0" />
+            <span className="font-semibold text-foreground">
+              {format(eventDate, 'MMM d, yyyy')}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 flex-1">
+            <MapPin className="h-4 w-4 text-accent flex-shrink-0" />
+            <span className="text-muted-foreground truncate text-xs">
+              {event.location}
+            </span>
+          </div>
         </div>
-      </CardContent>
+
+        <Button
+          variant="gradient"
+          size="sm"
+          className="w-full font-semibold shadow-glow-md hover:shadow-glow-lg"
+          onClick={(e) => {
+            e.stopPropagation();
+            onInterested();
+          }}
+        >
+          <Star className="mr-2 h-4 w-4" />
+          Interested
+        </Button>
+      </div>
     </Card>
   );
 }

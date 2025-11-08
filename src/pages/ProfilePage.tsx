@@ -7,20 +7,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Github, Linkedin, Mail, X } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Github, Linkedin, Mail, X, Camera, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ChatDialog } from '@/components/chat/ChatDialog';
 
 interface Profile {
   id: string;
   username: string;
   college: string;
+  branch?: string;
+  year?: string;
+  email?: string;
+  avatar_url?: string;
   skills: string[];
   experience?: string; // may contain JSON string with items
   achievements?: any; // may be string[] or JSON string
+  projects?: string; // JSON string with project items
   github_url: string;
   linkedin_url: string;
-  email?: string;
 }
 
 type MediaItem = {
@@ -30,14 +35,28 @@ type MediaItem = {
   url?: string;
 };
 
+type ProjectItem = {
+  id?: string;
+  title: string;
+  description: string;
+  urls: string[];
+  images: MediaItem[];
+};
+
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState(false);
+  const [chatConversationId, setChatConversationId] = useState<string | undefined>();
   const [editForm, setEditForm] = useState({
     username: '',
     college: '',
+    branch: '',
+    year: '',
     github_url: '',
     linkedin_url: '',
     email: '',
@@ -47,6 +66,7 @@ export default function ProfilePage() {
     experienceItems: [] as MediaItem[],
     achievementInput: '',
     achievementItems: [] as MediaItem[],
+    projectItems: [] as ProjectItem[],
   });
 
   const parseExperience = (raw: any) => {
@@ -83,6 +103,19 @@ export default function ProfilePage() {
     return { list: [], items: [] as MediaItem[] };
   };
 
+  const parseProjects = (raw: any) => {
+    if (!raw) return [] as ProjectItem[];
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  };
+
   const fetchProfile = async () => {
     const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
 
@@ -92,19 +125,23 @@ export default function ProfilePage() {
 
       const exp = parseExperience(profileData.experience);
       const ach = parseAchievements(profileData.achievements);
+      const proj = parseProjects(profileData.projects);
 
       setEditForm({
         username: profileData.username,
         college: profileData.college || '',
+        branch: profileData.branch || '',
+        year: profileData.year || '',
         github_url: profileData.github_url || '',
         linkedin_url: profileData.linkedin_url || '',
-        email: (profileData as any).email || '',
+        email: profileData.email || '',
         skillInput: '',
         skills: profileData.skills || [],
         experienceText: exp.text || '',
         experienceItems: exp.items || [],
         achievementInput: '',
         achievementItems: ach.items || [],
+        projectItems: proj || [],
       });
     }
   };
@@ -142,6 +179,13 @@ export default function ProfilePage() {
       return;
     }
     try {
+      // Upload avatar if changed
+      let avatarUrl = profile.avatar_url;
+      if (avatarFile) {
+        const path = `${profile.id}/avatar/${Date.now()}_${avatarFile.name}`;
+        avatarUrl = await uploadFile(avatarFile, path);
+      }
+
       // upload files for experience items
       const expItems = await Promise.all(
         editForm.experienceItems.map(async (it, idx) => {
@@ -165,24 +209,57 @@ export default function ProfilePage() {
         })
       );
 
+      // Upload project images
+      const projectItems = await Promise.all(
+        editForm.projectItems.map(async (proj) => {
+          const images = await Promise.all(
+            proj.images.map(async (img) => {
+              if (img.file) {
+                const path = `${profile.id}/projects/${Date.now()}_${img.file.name}`;
+                const url = await uploadFile(img.file, path);
+                return { caption: img.caption, url };
+              }
+              return { caption: img.caption, url: img.url };
+            })
+          );
+          return {
+            title: proj.title,
+            description: proj.description,
+            urls: proj.urls,
+            images,
+          };
+        })
+      );
+
 
       const experiencePayload = JSON.stringify({ text: editForm.experienceText, items: expItems });
       const achievementsPayload = JSON.stringify({ list: [], items: achItems });
+      const projectsPayload = JSON.stringify(projectItems);
 
       // Build payload only with fields that exist in the fetched profile to avoid DB errors
       const updatePayload: any = {
         username: editForm.username,
         college: editForm.college,
+        branch: editForm.branch,
+        year: editForm.year,
+        email: editForm.email,
         github_url: editForm.github_url,
         linkedin_url: editForm.linkedin_url,
         skills: editForm.skills,
       };
+
+      if (avatarUrl) {
+        updatePayload.avatar_url = avatarUrl;
+      }
 
       if (Object.prototype.hasOwnProperty.call(profile, 'experience')) {
         updatePayload.experience = experiencePayload;
       }
       if (Object.prototype.hasOwnProperty.call(profile, 'achievements')) {
         updatePayload.achievements = achievementsPayload;
+      }
+      if (Object.prototype.hasOwnProperty.call(profile, 'projects')) {
+        updatePayload.projects = projectsPayload;
       }
 
       const { data: updateData, error } = await supabase.from('profiles').update(updatePayload).eq('id', id);
@@ -194,6 +271,8 @@ export default function ProfilePage() {
 
       toast.success('Profile updated!');
       setIsEditing(false);
+      setAvatarFile(null);
+      setAvatarPreview(null);
       fetchProfile();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -229,6 +308,94 @@ export default function ProfilePage() {
     setEditForm({ ...editForm, achievementItems: items });
   };
 
+  const addProjectItem = () => {
+    setEditForm({
+      ...editForm,
+      projectItems: [
+        ...editForm.projectItems,
+        { title: '', description: '', urls: [], images: [] }
+      ]
+    });
+  };
+
+  const removeProjectItem = (idx: number) => {
+    const items = editForm.projectItems.slice();
+    items.splice(idx, 1);
+    setEditForm({ ...editForm, projectItems: items });
+  };
+
+  const addProjectImage = (projIdx: number) => {
+    const items = editForm.projectItems.slice();
+    items[projIdx].images.push({ caption: '', file: null });
+    setEditForm({ ...editForm, projectItems: items });
+  };
+
+  const removeProjectImage = (projIdx: number, imgIdx: number) => {
+    const items = editForm.projectItems.slice();
+    items[projIdx].images.splice(imgIdx, 1);
+    setEditForm({ ...editForm, projectItems: items });
+  };
+
+  const addProjectUrl = (projIdx: number) => {
+    const items = editForm.projectItems.slice();
+    items[projIdx].urls.push('');
+    setEditForm({ ...editForm, projectItems: items });
+  };
+
+  const removeProjectUrl = (projIdx: number, urlIdx: number) => {
+    const items = editForm.projectItems.slice();
+    items[projIdx].urls.splice(urlIdx, 1);
+    setEditForm({ ...editForm, projectItems: items });
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleStartChat = async () => {
+    if (!user || !profile || user.id === profile.id) return;
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('get_or_create_direct_conversation', {
+        user1_id: user.id,
+        user2_id: profile.id
+      });
+
+      if (error) {
+        console.error('RPC Error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('No conversation ID returned');
+      }
+
+      setChatConversationId(data);
+      setShowChat(true);
+    } catch (error: any) {
+      console.error('Error starting chat:', error);
+      
+      // Provide more helpful error message
+      if (error.message?.includes('function') || error.code === '42883') {
+        toast.error('Chat system not set up yet. Please contact administrator to run the database migration.');
+      } else {
+        toast.error('Failed to start conversation. Please try again.');
+      }
+    }
+  };
+
   if (!profile) return <div className="p-6 text-center">Loading...</div>;
 
   const isOwnProfile = user?.id === id;
@@ -239,15 +406,65 @@ export default function ProfilePage() {
       <aside className="col-span-1">
         <Card>
           <CardContent className="flex flex-col items-center text-center space-y-4 p-6">
-            <Avatar className="h-28 w-28">
-              <AvatarFallback className="text-3xl">{profile.username[0].toUpperCase()}</AvatarFallback>
-            </Avatar>
+            {/* Avatar with upload option */}
+            <div className="relative group">
+              <Avatar className="h-28 w-28">
+                {(avatarPreview || profile.avatar_url) ? (
+                  <img 
+                    src={avatarPreview || profile.avatar_url} 
+                    alt={profile.username}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <AvatarFallback className="text-3xl">
+                    {profile.username[0].toUpperCase()}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              {isEditing && (
+                <label className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  <Camera className="h-8 w-8 text-white" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                </label>
+              )}
+            </div>
+            
+            {/* Display mode - Show name, branch, year, college */}
+            {!isEditing && (
+              <div className="w-full space-y-2">
+                <h2 className="text-xl font-bold">{profile.username}</h2>
+                {(profile.branch || profile.year) && (
+                  <p className="text-sm text-muted-foreground">
+                    {profile.branch && profile.branch}
+                    {profile.branch && profile.year && ' • '}
+                    {profile.year && profile.year}
+                  </p>
+                )}
+                {profile.college && (
+                  <p className="text-sm text-muted-foreground">{profile.college}</p>
+                )}
+              </div>
+            )}
+            
             <div className="w-full">
               {isEditing ? (
                 <div className="w-full space-y-2">
                   <div>
                     <Label>Name</Label>
                     <Input value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Branch</Label>
+                    <Input value={editForm.branch} onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })} placeholder="e.g., Computer Science, IT, BCA" />
+                  </div>
+                  <div>
+                    <Label>Year</Label>
+                    <Input value={editForm.year} onChange={(e) => setEditForm({ ...editForm, year: e.target.value })} placeholder="e.g., First Year, Second Year" />
                   </div>
                   <div>
                     <Label>College</Label>
@@ -268,21 +485,21 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div className="w-full pt-2 border-t">
-                  <h4 className="text-sm font-medium">Contact</h4>
-                  <div className="flex flex-col gap-2 mt-2">
+                  <h4 className="text-sm font-semibold mb-2">Contact</h4>
+                  <div className="flex flex-col gap-2">
                     {profile.email && (
-                      <a className="flex items-center gap-2 text-sm" href={`mailto:${profile.email}`}>
-                        <Mail className="h-4 w-4" /> {profile.email}
+                      <a className="flex items-center gap-2 text-sm hover:text-primary transition-colors" href={`mailto:${profile.email}`}>
+                        <Mail className="h-4 w-4" /> <span className="truncate">{profile.email}</span>
                       </a>
                     )}
                     {profile.github_url && (
-                      <a className="flex items-center gap-2 text-sm" href={profile.github_url} target="_blank" rel="noreferrer">
-                        <Github className="h-4 w-4" /> {profile.github_url}
+                      <a className="flex items-center gap-2 text-sm hover:text-primary transition-colors" href={profile.github_url} target="_blank" rel="noreferrer">
+                        <Github className="h-4 w-4" /> <span className="truncate">GitHub</span>
                       </a>
                     )}
                     {profile.linkedin_url && (
-                      <a className="flex items-center gap-2 text-sm" href={profile.linkedin_url} target="_blank" rel="noreferrer">
-                        <Linkedin className="h-4 w-4" /> {profile.linkedin_url}
+                      <a className="flex items-center gap-2 text-sm hover:text-primary transition-colors" href={profile.linkedin_url} target="_blank" rel="noreferrer">
+                        <Linkedin className="h-4 w-4" /> <span className="truncate">LinkedIn</span>
                       </a>
                     )}
                   </div>
@@ -299,18 +516,30 @@ export default function ProfilePage() {
           <CardHeader>
             <div className="flex items-center justify-between">
                 <CardTitle>Profile</CardTitle>
-              {isOwnProfile && (
-                isEditing ? (
-                  <Button variant="outline" onClick={() => {
-                    setIsEditing(false);
-                    fetchProfile(); // Reset form to saved state
-                  }}>
-                    ← Back to Profile
+              <div className="flex gap-2">
+                {!isOwnProfile && (
+                  <Button 
+                    onClick={handleStartChat}
+                    variant="gradient"
+                    className="flex items-center gap-2"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Message
                   </Button>
-                ) : (
-                  <Button onClick={() => setIsEditing(true)}>Edit</Button>
-                )
-              )}
+                )}
+                {isOwnProfile && (
+                  isEditing ? (
+                    <Button variant="outline" onClick={() => {
+                      setIsEditing(false);
+                      fetchProfile(); // Reset form to saved state
+                    }}>
+                      ← Back to Profile
+                    </Button>
+                  ) : (
+                    <Button onClick={() => setIsEditing(true)}>Edit</Button>
+                  )
+                )}
+              </div>
               </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -457,6 +686,157 @@ export default function ProfilePage() {
               )}
             </section>
 
+            {/* Projects */}
+            <section>
+              <h3 className="font-semibold mb-2">Projects</h3>
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Add your projects</Label>
+                    <Button size="sm" onClick={addProjectItem} variant="outline">Add Project</Button>
+                  </div>
+                  
+                  {editForm.projectItems.map((proj, projIdx) => (
+                    <Card key={projIdx} className="p-4 border-2">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-semibold">Project {projIdx + 1}</Label>
+                          <Button size="sm" variant="ghost" onClick={() => removeProjectItem(projIdx)}>Remove</Button>
+                        </div>
+                        
+                        <div>
+                          <Label>Title</Label>
+                          <Input 
+                            value={proj.title}
+                            onChange={(e) => {
+                              const items = editForm.projectItems.slice();
+                              items[projIdx].title = e.target.value;
+                              setEditForm({ ...editForm, projectItems: items });
+                            }}
+                            placeholder="Project name"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label>Description</Label>
+                          <textarea 
+                            value={proj.description}
+                            onChange={(e) => {
+                              const items = editForm.projectItems.slice();
+                              items[projIdx].description = e.target.value;
+                              setEditForm({ ...editForm, projectItems: items });
+                            }}
+                            className="w-full p-2 border rounded"
+                            rows={3}
+                            placeholder="Describe your project..."
+                          />
+                        </div>
+                        
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <Label>URLs (GitHub, Demo, etc.)</Label>
+                            <Button size="sm" variant="outline" onClick={() => addProjectUrl(projIdx)}>Add URL</Button>
+                          </div>
+                          {proj.urls.map((url, urlIdx) => (
+                            <div key={urlIdx} className="flex gap-2 mb-2">
+                              <Input
+                                value={url}
+                                onChange={(e) => {
+                                  const items = editForm.projectItems.slice();
+                                  items[projIdx].urls[urlIdx] = e.target.value;
+                                  setEditForm({ ...editForm, projectItems: items });
+                                }}
+                                placeholder="https://..."
+                              />
+                              <Button size="sm" variant="ghost" onClick={() => removeProjectUrl(projIdx, urlIdx)}>✕</Button>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <Label>Images</Label>
+                            <Button size="sm" variant="outline" onClick={() => addProjectImage(projIdx)}>Add Image</Button>
+                          </div>
+                          {proj.images.map((img, imgIdx) => (
+                            <div key={imgIdx} className="flex items-start gap-2 mb-2">
+                              <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] || null;
+                                  const items = editForm.projectItems.slice();
+                                  items[projIdx].images[imgIdx].file = file;
+                                  setEditForm({ ...editForm, projectItems: items });
+                                }}
+                              />
+                              <input
+                                className="flex-1 p-2 border rounded"
+                                placeholder="Caption"
+                                value={img.caption}
+                                onChange={(e) => {
+                                  const items = editForm.projectItems.slice();
+                                  items[projIdx].images[imgIdx].caption = e.target.value;
+                                  setEditForm({ ...editForm, projectItems: items });
+                                }}
+                              />
+                              <Button size="sm" variant="ghost" onClick={() => removeProjectImage(projIdx, imgIdx)}>✕</Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(() => {
+                    const projects = parseProjects(profile.projects);
+                    return projects.length > 0 ? (
+                      projects.map((proj: ProjectItem, i: number) => (
+                        <Card key={i} className="p-4 hover:shadow-lg transition-shadow">
+                          <h4 className="font-bold text-lg mb-2">{proj.title}</h4>
+                          <p className="text-sm text-muted-foreground mb-3">{proj.description}</p>
+                          
+                          {proj.urls && proj.urls.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-xs font-semibold mb-1">Links:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {proj.urls.map((url, idx) => (
+                                  <a 
+                                    key={idx}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                                  >
+                                    🔗 {url.length > 30 ? url.substring(0, 30) + '...' : url}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {proj.images && proj.images.length > 0 && (
+                            <div className="grid grid-cols-2 gap-2 mt-3">
+                              {proj.images.map((img: any, idx: number) => (
+                                <div key={idx} className="border rounded overflow-hidden">
+                                  {img.url && <img src={img.url} alt={img.caption} className="w-full h-32 object-cover" />}
+                                  {img.caption && <div className="p-2 text-xs">{img.caption}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </Card>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No projects added yet.</p>
+                    );
+                  })()}
+                </div>
+              )}
+            </section>
+
             {/* Save / Cancel */}
             {isEditing && (
               <div className="flex gap-2">
@@ -467,6 +847,13 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Chat Dialog */}
+      <ChatDialog 
+        open={showChat} 
+        onOpenChange={setShowChat}
+        initialConversationId={chatConversationId}
+      />
     </div>
   );
 }
