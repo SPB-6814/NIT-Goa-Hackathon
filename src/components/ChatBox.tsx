@@ -1,0 +1,137 @@
+import { useEffect, useState, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Send } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+
+interface Message {
+  id: string;
+  content: string;
+  created_at: string;
+  user_id: string;
+  profiles: {
+    username: string;
+  };
+}
+
+interface ChatBoxProps {
+  projectId: string;
+}
+
+export const ChatBox = ({ projectId }: ChatBoxProps) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const { user } = useAuth();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchMessages();
+    
+    const channel = supabase
+      .channel('messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as any;
+          supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', newMsg.user_id)
+            .single()
+            .then(({ data }) => {
+              setMessages((prev) => [...prev, { ...newMsg, profiles: data }]);
+            });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const fetchMessages = async () => {
+    const { data } = await supabase
+      .from('messages')
+      .select('*, profiles(username)')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+
+    setMessages(data || []);
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !user) return;
+
+    await supabase
+      .from('messages')
+      .insert({
+        content: newMessage,
+        project_id: projectId,
+        user_id: user.id,
+      });
+
+    setNewMessage('');
+  };
+
+  return (
+    <div className="flex flex-col h-[500px]">
+      <div className="flex-1 overflow-y-auto space-y-3 p-4">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex gap-3 ${
+              message.user_id === user?.id ? 'flex-row-reverse' : ''
+            }`}
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarFallback>
+                {message.profiles.username[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <Card className={`p-3 max-w-[70%] ${
+              message.user_id === user?.id ? 'bg-primary text-primary-foreground' : ''
+            }`}>
+              <p className="text-sm font-medium mb-1">{message.profiles.username}</p>
+              <p className="text-sm">{message.content}</p>
+              <p className="text-xs opacity-70 mt-1">
+                {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
+              </p>
+            </Card>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="p-4 border-t flex gap-2">
+        <Input
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Type a message..."
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              sendMessage();
+            }
+          }}
+        />
+        <Button onClick={sendMessage} size="icon">
+          <Send className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+};
