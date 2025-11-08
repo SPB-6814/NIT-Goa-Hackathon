@@ -1,11 +1,82 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search as SearchIcon } from 'lucide-react';
+import { Search as SearchIcon, Github, Linkedin } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { supabase } from '@/integrations/supabase/client';
+
+interface Profile {
+  id: string;
+  username: string;
+  college?: string;
+  skills: string[];
+  github_url?: string;
+  linkedin_url?: string;
+}
+
+interface SearchFilters {
+  query: string;
+  skillFilter: string | null;
+}
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [filters, setFilters] = useState<SearchFilters>({
+    query: '',
+    skillFilter: null
+  });
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters(prev => ({ ...prev, query: searchQuery }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch profiles when filters change
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      setIsLoading(true);
+      try {
+        // For flexible searching (username, college, partial skill matches) we fetch a reasonable
+        // number of profiles and perform client-side filtering. This keeps server logic simple
+        // and supports partial matching inside skills arrays.
+        const { data, error } = await supabase.from('profiles').select('*').limit(1000);
+        if (error) throw error;
+
+        let allProfiles = (data as Profile[]) || [];
+
+        // If a text query is present, match username, college or any skill (partial, case-insensitive)
+        if (filters.query) {
+          const q = filters.query.toLowerCase();
+          allProfiles = allProfiles.filter((p) =>
+            (p.username || '').toLowerCase().includes(q) ||
+            (p.college || '').toLowerCase().includes(q) ||
+            (p.skills || []).some((s) => s.toLowerCase().includes(q))
+          );
+        }
+
+        // If a skill filter badge is active, further narrow to profiles containing that skill
+        if (filters.skillFilter) {
+          const sf = filters.skillFilter.toLowerCase();
+          allProfiles = allProfiles.filter((p) => (p.skills || []).some((s) => s.toLowerCase().includes(sf)));
+        }
+
+        setProfiles(allProfiles);
+      } catch (error) {
+        console.error('Error fetching profiles:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfiles();
+  }, [filters]);
 
   const popularSkills = [
     'React', 'Python', 'JavaScript', 'TypeScript', 'Node.js',
@@ -36,8 +107,15 @@ export default function SearchPage() {
             <Badge
               key={skill}
               variant="outline"
-              className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
-              onClick={() => setSearchQuery(skill)}
+              className={`cursor-pointer transition-colors ${
+                filters.skillFilter === skill
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-primary hover:text-primary-foreground'
+              }`}
+              onClick={() => setFilters(prev => ({
+                ...prev,
+                skillFilter: prev.skillFilter === skill ? null : skill
+              }))}
             >
               {skill}
             </Badge>
@@ -45,12 +123,79 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {searchQuery && (
+      {isLoading ? (
         <Card>
-          <CardContent className="pt-6 text-center text-muted-foreground">
-            Search functionality coming soon! Use the Home page to browse all projects.
+          <CardContent className="p-6 text-center text-muted-foreground">
+            Loading profiles...
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-4">
+          {profiles.length > 0 ? (
+            profiles.map((profile) => (
+              <Link key={profile.id} to={`/profile/${profile.id}`}>
+                <Card className="hover:bg-accent/50 transition-colors">
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4">
+                      <Avatar className="h-12 w-12">
+                        <AvatarFallback>
+                          {profile.username[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <h3 className="font-medium">{profile.username}</h3>
+                          {profile.college && (
+                            <p className="text-sm text-muted-foreground">
+                              {profile.college}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {profile.skills?.map((skill) => (
+                            <Badge
+                              key={skill}
+                              variant={
+                                filters.skillFilter &&
+                                skill.toLowerCase().includes(filters.skillFilter.toLowerCase())
+                                  ? 'default'
+                                  : 'secondary'
+                              }
+                            >
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex gap-4 text-sm text-muted-foreground">
+                          {profile.github_url && (
+                            <div className="flex items-center gap-1">
+                              <Github className="h-4 w-4" />
+                              GitHub
+                            </div>
+                          )}
+                          {profile.linkedin_url && (
+                            <div className="flex items-center gap-1">
+                              <Linkedin className="h-4 w-4" />
+                              LinkedIn
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-center text-muted-foreground">
+                {filters.query || filters.skillFilter
+                  ? 'No profiles match your search criteria.'
+                  : 'Start typing to search profiles or select a skill.'}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );
