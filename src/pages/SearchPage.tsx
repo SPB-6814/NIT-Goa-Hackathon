@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search as SearchIcon, Github, Linkedin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Search as SearchIcon, Github, Linkedin, X } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -29,6 +30,49 @@ export default function SearchPage() {
     query: '',
     skillFilter: null
   });
+  const [recentProfiles, setRecentProfiles] = useState<Profile[]>([]);
+  // Show recent searches by default (appear before any search input)
+  const [showRecent, setShowRecent] = useState(true);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('recentProfiles');
+      if (raw) setRecentProfiles(JSON.parse(raw));
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const addToRecent = (p: Profile) => {
+    try {
+      const next = [p, ...recentProfiles.filter(r => r.id !== p.id)].slice(0, 10);
+      setRecentProfiles(next);
+      localStorage.setItem('recentProfiles', JSON.stringify(next));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const clearRecent = () => {
+    setRecentProfiles([]);
+    try { localStorage.removeItem('recentProfiles'); } catch (e) { /* ignore */ }
+  };
+
+  const removeFromRecent = (profileId: string, e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent navigation to profile
+    e.stopPropagation(); // Prevent event bubbling to parent Link
+    const next = recentProfiles.filter(p => p.id !== profileId);
+    setRecentProfiles(next);
+    try {
+      if (next.length === 0) {
+        localStorage.removeItem('recentProfiles');
+      } else {
+        localStorage.setItem('recentProfiles', JSON.stringify(next));
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
 
   // Debounce search query
   useEffect(() => {
@@ -41,6 +85,12 @@ export default function SearchPage() {
   // Fetch profiles when filters change
   useEffect(() => {
     const fetchProfiles = async () => {
+      // Only fetch if there's a search query or skill filter
+      if (!filters.query && !filters.skillFilter) {
+        setProfiles([]);
+        return;
+      }
+      
       setIsLoading(true);
       try {
         // For flexible searching (username, college, partial skill matches) we fetch a reasonable
@@ -95,7 +145,7 @@ export default function SearchPage() {
         <Input
           placeholder="Search by skills, interests, or keywords..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => { setSearchQuery(e.target.value); setShowRecent(true); }}
           className="pl-10 h-12"
         />
       </div>
@@ -131,9 +181,48 @@ export default function SearchPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {profiles.length > 0 ? (
-            profiles.map((profile) => (
-              <Link key={profile.id} to={`/profile/${profile.id}`}>
+          {showRecent && recentProfiles.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium">Recent searches</h4>
+                <Button variant="ghost" size="sm" onClick={clearRecent}>Clear recent</Button>
+              </div>
+              <div className="flex flex-col gap-2 mb-4">
+                {recentProfiles.map((rp) => (
+                  <Card key={rp.id} className="hover:bg-accent/50 transition-colors">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <Link 
+                        to={`/profile/${rp.id}`} 
+                        onClick={() => addToRecent(rp)}
+                        className="flex-1 flex items-center gap-3"
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback>{rp.username[0].toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="font-medium">{rp.username}</div>
+                          {rp.college && <div className="text-sm text-muted-foreground">{rp.college}</div>}
+                        </div>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={(e) => removeFromRecent(rp.id, e)}
+                      >
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Remove from recent searches</span>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(filters.query || filters.skillFilter) && profiles.filter(p => !recentProfiles.some(r => r.id === p.id)).length > 0 ? (
+            profiles.filter(p => !recentProfiles.some(r => r.id === p.id)).map((profile) => (
+              <Link key={profile.id} to={`/profile/${profile.id}`} onClick={() => addToRecent(profile)}>
                 <Card className="hover:bg-accent/50 transition-colors">
                   <CardContent className="p-6">
                     <div className="flex items-start gap-4">
