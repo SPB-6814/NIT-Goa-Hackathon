@@ -24,9 +24,10 @@ type ViewMode = 'cards' | 'calendar';
 const EVENT_FILTERS = ['All', 'Technical', 'Cultural', 'Academic', 'Sports', 'Workshop', 'Competition'];
 
 // Hardcoded events with poster URLs and tags
+// Using UUID format for compatibility with database
 const HARDCODED_EVENTS: Event[] = [
   {
-    id: '1',
+    id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
     title: 'HackNIT 2025',
     description: 'Annual hackathon bringing together the brightest minds to solve real-world problems',
     event_date: '2025-11-15',
@@ -37,7 +38,7 @@ const HARDCODED_EVENTS: Event[] = [
     registration_url: 'https://example.com/register/hacknit2025',
   },
   {
-    id: '2',
+    id: 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
     title: 'AI/ML Workshop Series',
     description: 'Hands-on workshop covering latest trends in artificial intelligence and machine learning',
     event_date: '2025-11-20',
@@ -48,7 +49,7 @@ const HARDCODED_EVENTS: Event[] = [
     registration_url: 'https://example.com/register/aiml-workshop',
   },
   {
-    id: '3',
+    id: 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a33',
     title: 'Code Sprint Championship',
     description: 'Competitive programming competition with exciting prizes and challenges',
     event_date: '2025-11-22',
@@ -59,7 +60,7 @@ const HARDCODED_EVENTS: Event[] = [
     registration_url: 'https://example.com/register/code-sprint',
   },
   {
-    id: '4',
+    id: 'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380a44',
     title: 'Tech Confluence 2025',
     description: 'Annual tech conference featuring industry leaders and innovative startups',
     event_date: '2025-11-25',
@@ -70,7 +71,7 @@ const HARDCODED_EVENTS: Event[] = [
     registration_url: 'https://example.com/register/tech-confluence',
   },
   {
-    id: '5',
+    id: 'e4eebc99-9c0b-4ef8-bb6d-6bb9bd380a55',
     title: 'Web Development Bootcamp',
     description: 'Intensive 3-day bootcamp on modern web development frameworks and best practices',
     event_date: '2025-11-28',
@@ -81,7 +82,7 @@ const HARDCODED_EVENTS: Event[] = [
     registration_url: 'https://example.com/register/webdev-bootcamp',
   },
   {
-    id: '6',
+    id: 'f5eebc99-9c0b-4ef8-bb6d-6bb9bd380a66',
     title: 'Innovation Challenge 2025',
     description: 'Showcase your innovative ideas and compete for funding and mentorship opportunities',
     event_date: '2025-12-05',

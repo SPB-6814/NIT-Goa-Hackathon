@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface UserProfile {
   id: string;
-  username: string;
+  full_name: string;
   skills: string[];
   interests: string[];
   bio?: string;
@@ -18,7 +18,8 @@ interface MatchResult {
   ai_reasoning: string;
 }
 
-// Initialize Gemini API
+const MATCH_THRESHOLD = 0.5;
+
 const getGeminiAPI = () => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
@@ -27,9 +28,6 @@ const getGeminiAPI = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
-/**
- * Use Gemini AI to analyze compatibility between two users
- */
 export const analyzeTeammateCompatibility = async (
   user1: UserProfile,
   user2: UserProfile
@@ -38,52 +36,28 @@ export const analyzeTeammateCompatibility = async (
     const genAI = getGeminiAPI();
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
-    const prompt = `
-You are an AI assistant helping to match teammates for events and projects. Analyze the compatibility between these two users:
-
-User 1 (${user1.username}):
-- Skills: ${user1.skills.join(', ') || 'None listed'}
-- Interests: ${user1.interests.join(', ') || 'None listed'}
-- Bio: ${user1.bio || 'Not provided'}
-
-User 2 (${user2.username}):
-- Skills: ${user2.skills.join(', ') || 'None listed'}
-- Interests: ${user2.interests.join(', ') || 'None listed'}
-- Bio: ${user2.bio || 'Not provided'}
-
-Analyze their compatibility as potential teammates and provide:
-1. A match score from 0 to 1 (0 = poor match, 1 = excellent match)
-2. List of matching skills (if any)
-3. List of matching interests (if any)
-4. A brief explanation (2-3 sentences) of why they would or wouldn't make good teammates
-
-Format your response as JSON:
-{
-  "match_score": 0.85,
-  "matching_skills": ["JavaScript", "Python"],
-  "matching_interests": ["AI", "Web Development"],
-  "reasoning": "Both users have strong technical skills and share interests in AI and web development. They complement each other well."
-}
-`;
+    const prompt = 'You are an AI assistant helping to match teammates for events and projects. Analyze the compatibility between these two users:\\n\\nUser 1 (' + user1.full_name + '):\\n- Skills: ' + (user1.skills?.join(', ') || 'None listed') + '\\n- Interests: ' + (user1.interests?.join(', ') || 'None listed') + '\\n- Bio: ' + (user1.bio || 'Not provided') + '\\n\\nUser 2 (' + user2.full_name + '):\\n- Skills: ' + (user2.skills?.join(', ') || 'None listed') + '\\n- Interests: ' + (user2.interests?.join(', ') || 'None listed') + '\\n- Bio: ' + (user2.bio || 'Not provided') + '\\n\\nAnalyze their compatibility as potential teammates and provide:\\n1. A match score from 0 to 1 (0 = poor match, 1 = excellent match)\\n2. List of matching skills (if any)\\n3. List of matching interests (if any)\\n4. A brief explanation (2-3 sentences) of why they would or wouldn\'t make good teammates\\n\\nFormat your response as JSON:\\n{\\n  "match_score": 0.85,\\n  "matching_skills": ["JavaScript", "Python"],\\n  "matching_interests": ["AI", "Web Development"],\\n  "reasoning": "Both users have strong technical skills and share interests in AI and web development. They complement each other well."\\n}';
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    // Extract JSON from response (handle markdown code blocks)
     let jsonText = text.trim();
-    if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    } else if (jsonText.startsWith('```')) {
-      jsonText = jsonText.replace(/```\n?/g, '');
+    const jsonStart = jsonText.indexOf('{');
+    if (jsonStart !== -1) {
+      jsonText = jsonText.substring(jsonStart);
+      const endIndex = jsonText.lastIndexOf('}');
+      if (endIndex !== -1) {
+        jsonText = jsonText.substring(0, endIndex + 1);
+      }
     }
 
-    const analysis = JSON.parse(jsonText);
+    const analysis = JSON.parse(jsonText.trim());
 
     return {
       user1_id: user1.id,
       user2_id: user2.id,
-      match_score: Math.min(Math.max(analysis.match_score, 0), 1), // Clamp between 0 and 1
+      match_score: Math.min(Math.max(analysis.match_score, 0), 1),
       matching_skills: analysis.matching_skills || [],
       matching_interests: analysis.matching_interests || [],
       ai_reasoning: analysis.reasoning || 'No reasoning provided',
@@ -91,18 +65,17 @@ Format your response as JSON:
   } catch (error) {
     console.error('Error analyzing compatibility:', error);
     
-    // Fallback to basic matching if AI fails
-    const matchingSkills = user1.skills.filter(skill => 
-      user2.skills.includes(skill)
+    const matchingSkills = (user1.skills || []).filter(skill => 
+      (user2.skills || []).includes(skill)
     );
-    const matchingInterests = user1.interests.filter(interest => 
-      user2.interests.includes(interest)
+    const matchingInterests = (user1.interests || []).filter(interest => 
+      (user2.interests || []).includes(interest)
     );
     
     const totalMatches = matchingSkills.length + matchingInterests.length;
     const totalItems = Math.max(
-      user1.skills.length + user1.interests.length,
-      user2.skills.length + user2.interests.length,
+      (user1.skills?.length || 0) + (user1.interests?.length || 0),
+      (user2.skills?.length || 0) + (user2.interests?.length || 0),
       1
     );
     const matchScore = totalMatches / totalItems;
@@ -118,175 +91,174 @@ Format your response as JSON:
   }
 };
 
-/**
- * Find and create matches for users interested in the same event
- */
 export const findEventTeammates = async (eventId: string): Promise<void> => {
+  console.log('[AI Match] 1. Starting findEventTeammates for eventId:', eventId);
+
   try {
-    // Get all users interested in this event
     const { data: interests, error: interestsError } = await supabase
-      .from('event_interests' as any)
-      .select(`
-        user_id,
-        profiles!event_interests_user_id_fkey (
-          id,
-          username,
-          skills,
-          interests,
-          bio
-        )
-      `)
+      .from('event_interests')
+      .select('user_id')
       .eq('event_id', eventId);
 
-    if (interestsError) throw interestsError;
+    if (interestsError) {
+      console.error('[AI Match] Error fetching event interests:', interestsError);
+      throw new Error('Failed to fetch event interests');
+    }
+
+    console.log('[AI Match] 2. Found interested users:', interests?.length || 0);
+
     if (!interests || interests.length < 2) {
-      console.log('Not enough users interested in event for matching');
+      console.log('[AI Match] Not enough users to form a match. Exiting.');
       return;
     }
 
-    const users: UserProfile[] = interests.map((i: any) => ({
-      id: i.profiles.id,
-      username: i.profiles.username,
-      skills: i.profiles.skills || [],
-      interests: i.profiles.interests || [],
-      bio: i.profiles.bio,
-    }));
+    const userIds = interests.map((interest) => interest.user_id);
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', userIds);
 
-    // Check existing matches to avoid duplicates
-    const { data: existingMatches } = await supabase
-      .from('teammate_matches' as any)
-      .select('user1_id, user2_id')
-      .eq('event_id', eventId);
+    if (profilesError) {
+      console.error('[AI Match] Error fetching profiles:', profilesError);
+      throw new Error('Failed to fetch profiles');
+    }
+    
+    console.log('[AI Match] 3. Fetched user profiles:', profiles?.length || 0);
 
-    const existingPairs = new Set(
-      (existingMatches || []).map((m: any) => 
-        [m.user1_id, m.user2_id].sort().join('-')
-      )
-    );
+    if (!profiles) {
+      console.error('[AI Match] No profiles found');
+      return;
+    }
 
-    // Compare each pair of users
-    const matches: MatchResult[] = [];
-    for (let i = 0; i < users.length; i++) {
-      for (let j = i + 1; j < users.length; j++) {
-        const user1 = users[i];
-        const user2 = users[j];
-        
-        // Check if match already exists
-        const pairKey = [user1.id, user2.id].sort().join('-');
-        if (existingPairs.has(pairKey)) {
-          console.log(`Match already exists for ${user1.username} and ${user2.username}`);
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+    for (let i = 0; i < interests.length; i++) {
+      for (let j = i + 1; j < interests.length; j++) {
+        const user1 = profileMap.get(interests[i].user_id);
+        const user2 = profileMap.get(interests[j].user_id);
+
+        if (!user1 || !user2) {
+          console.warn('[AI Match] Could not find profile for one or both users in a pair. Skipping.');
           continue;
         }
 
-        // Use AI to analyze compatibility
-        const matchResult = await analyzeTeammateCompatibility(user1, user2);
+        console.log('[AI Match] 4. Comparing users:', user1.full_name, 'and', user2.full_name);
+
+        const { data: existingMatch, error: existingMatchError } = await supabase
+          .from('teammate_matches')
+          .select('id')
+          .or('and(user1_id.eq.' + user1.id + ',user2_id.eq.' + user2.id + '),and(user1_id.eq.' + user2.id + ',user2_id.eq.' + user1.id + ')')
+          .eq('event_id', eventId)
+          .limit(1);
+
+        if (existingMatchError) {
+          console.error('[AI Match] Error checking for existing matches:', existingMatchError);
+        }
         
-        // Only create matches with score > 0.5
-        if (matchResult.match_score > 0.5) {
-          matches.push(matchResult);
+        if (existingMatch && existingMatch.length > 0) {
+          console.log('[AI Match] Users already have a match for this event. Skipping.');
+          continue;
+        }
+
+        const compatibility = await analyzeTeammateCompatibility(user1, user2);
+        console.log('[AI Match] 5. Compatibility score:', compatibility.match_score, compatibility);
+
+        if (compatibility.match_score >= MATCH_THRESHOLD) {
+          console.log('[AI Match] 6. Match score is above threshold. Creating match...');
+          const { data: match, error: matchError } = await supabase
+            .from('teammate_matches')
+            .insert({
+              user1_id: user1.id,
+              user2_id: user2.id,
+              event_id: eventId,
+              compatibility_score: compatibility.match_score,
+              ai_reasoning: compatibility.ai_reasoning,
+              status: 'pending',
+            })
+            .select()
+            .single();
+
+          if (matchError) {
+            console.error('[AI Match] Error creating match record:', matchError);
+            throw new Error('Failed to create match record');
+          }
+
+          if (match) {
+            console.log('[AI Match] 7. Match record created successfully with ID:', match.id);
+            await createMatchNotifications(match, eventId);
+          }
+        } else {
+          console.log('[AI Match] Match score below threshold. No match created.');
         }
       }
     }
-
-    // Save matches to database
-    if (matches.length > 0) {
-      const matchRecords = matches.map(match => ({
-        event_id: eventId,
-        user1_id: match.user1_id,
-        user2_id: match.user2_id,
-        match_score: match.match_score,
-        matching_skills: match.matching_skills,
-        matching_interests: match.matching_interests,
-        ai_reasoning: match.ai_reasoning,
-        status: 'pending',
-      }));
-
-      const { error: insertError } = await supabase
-        .from('teammate_matches' as any)
-        .insert(matchRecords);
-
-      if (insertError) throw insertError;
-
-      // Create notifications for matched users
-      for (const match of matches) {
-        await createMatchNotifications(match, eventId);
-      }
-
-      console.log(`Created ${matches.length} new teammate matches for event ${eventId}`);
-    }
   } catch (error) {
-    console.error('Error finding event teammates:', error);
-    throw error;
+    console.error('[AI Match] An error occurred in findEventTeammates:', error);
   }
 };
 
-/**
- * Create notifications for both users in a match
- */
-const createMatchNotifications = async (
-  match: MatchResult,
-  eventId: string
-): Promise<void> => {
+export async function createMatchNotifications(match: any, eventId: string) {
+  console.log('[AI Match] 8. Inside createMatchNotifications for match ID:', match.id);
   try {
-    // Get event details
-    const { data: event } = await supabase
-      .from('events' as any)
+    const { data: event, error: eventError } = await supabase
+      .from('events')
       .select('title')
       .eq('id', eventId)
       .single();
 
-    // Get user details
-    const { data: user1 } = await supabase
-      .from('profiles' as any)
-      .select('username')
+    if (eventError) {
+      console.error('[AI Match] Error fetching event title for notification:', eventError);
+    }
+    const eventTitle = event?.title || 'an event';
+
+    const { data: user1, error: user1Error } = await supabase
+      .from('profiles')
+      .select('full_name')
       .eq('id', match.user1_id)
       .single();
-
-    const { data: user2 } = await supabase
-      .from('profiles' as any)
-      .select('username')
+      
+    const { data: user2, error: user2Error } = await supabase
+      .from('profiles')
+      .select('full_name')
       .eq('id', match.user2_id)
       .single();
 
-    const eventTitle = event?.title || 'the event';
-    const user1Name = user1?.username || 'A user';
-    const user2Name = user2?.username || 'A user';
+    if (user1Error || user2Error) {
+      console.error('[AI Match] Error fetching user names for notification:', user1Error || user2Error);
+    }
 
-    const notifications = [
+    const notificationsToInsert = [
       {
         user_id: match.user1_id,
         type: 'teammate_match',
-        title: '🎯 Teammate Match Found!',
-        message: `We found a great teammate match for you! ${user2Name} shares ${match.matching_skills.length + match.matching_interests.length} common skills/interests for "${eventTitle}".`,
-        data: {
-          event_id: eventId,
-          matched_user_id: match.user2_id,
-          match_score: match.match_score,
-          ai_reasoning: match.ai_reasoning,
-        },
-        is_read: false,
+        title: 'New Teammate Match for ' + eventTitle + '!',
+        message: 'You have been matched with ' + (user2?.full_name || 'a user') + '. AI Reasoning: "' + match.ai_reasoning + '"',
+        link: '/events/' + eventId,
+        metadata: { matchId: match.id },
       },
       {
         user_id: match.user2_id,
         type: 'teammate_match',
-        title: '🎯 Teammate Match Found!',
-        message: `We found a great teammate match for you! ${user1Name} shares ${match.matching_skills.length + match.matching_interests.length} common skills/interests for "${eventTitle}".`,
-        data: {
-          event_id: eventId,
-          matched_user_id: match.user1_id,
-          match_score: match.match_score,
-          ai_reasoning: match.ai_reasoning,
-        },
-        is_read: false,
+        title: 'New Teammate Match for ' + eventTitle + '!',
+        message: 'You have been matched with ' + (user1?.full_name || 'a user') + '. AI Reasoning: "' + match.ai_reasoning + '"',
+        link: '/events/' + eventId,
+        metadata: { matchId: match.id },
       },
     ];
 
-    const { error } = await supabase
-      .from('notifications' as any)
-      .insert(notifications);
+    console.log('[AI Match] 9. Inserting notifications into database:', notificationsToInsert);
 
-    if (error) throw error;
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert(notificationsToInsert);
+
+    if (notificationError) {
+      console.error('[AI Match] Error inserting notifications:', notificationError);
+      throw new Error('Failed to insert notifications');
+    }
+
+    console.log('[AI Match] 10. Notifications created successfully!');
   } catch (error) {
-    console.error('Error creating match notifications:', error);
+    console.error('[AI Match] An error occurred in createMatchNotifications:', error);
   }
-};
+}
