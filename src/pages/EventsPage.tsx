@@ -14,13 +14,16 @@ interface Event {
   event_date: string;
   location: string;
   event_type: string;
+  tags?: string[];
   poster_url?: string;
   registration_url?: string;
 }
 
 type ViewMode = 'cards' | 'calendar';
 
-// Hardcoded events with poster URLs
+const EVENT_FILTERS = ['All', 'Technical', 'Cultural', 'Academic', 'Sports', 'Workshop', 'Competition'];
+
+// Hardcoded events with poster URLs and tags
 const HARDCODED_EVENTS: Event[] = [
   {
     id: '1',
@@ -29,6 +32,7 @@ const HARDCODED_EVENTS: Event[] = [
     event_date: '2025-11-15',
     location: 'NIT Goa Campus',
     event_type: 'hackathon',
+    tags: ['Technical', 'Competition'],
     poster_url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=800&fit=crop',
     registration_url: 'https://example.com/register/hacknit2025',
   },
@@ -39,6 +43,7 @@ const HARDCODED_EVENTS: Event[] = [
     event_date: '2025-11-20',
     location: 'Computer Lab, Block A',
     event_type: 'workshop',
+    tags: ['Technical', 'Workshop', 'Academic'],
     poster_url: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=600&h=800&fit=crop',
     registration_url: 'https://example.com/register/aiml-workshop',
   },
@@ -49,6 +54,7 @@ const HARDCODED_EVENTS: Event[] = [
     event_date: '2025-11-22',
     location: 'Auditorium Hall',
     event_type: 'competition',
+    tags: ['Technical', 'Competition'],
     poster_url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=800&fit=crop',
     registration_url: 'https://example.com/register/code-sprint',
   },
@@ -59,6 +65,7 @@ const HARDCODED_EVENTS: Event[] = [
     event_date: '2025-11-25',
     location: 'Convention Center',
     event_type: 'conference',
+    tags: ['Technical', 'Academic'],
     poster_url: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=600&h=800&fit=crop',
     registration_url: 'https://example.com/register/tech-confluence',
   },
@@ -69,6 +76,7 @@ const HARDCODED_EVENTS: Event[] = [
     event_date: '2025-11-28',
     location: 'Lab 201, IT Block',
     event_type: 'workshop',
+    tags: ['Technical', 'Workshop'],
     poster_url: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600&h=800&fit=crop',
     registration_url: 'https://example.com/register/webdev-bootcamp',
   },
@@ -79,6 +87,7 @@ const HARDCODED_EVENTS: Event[] = [
     event_date: '2025-12-05',
     location: 'Innovation Hub',
     event_type: 'competition',
+    tags: ['Technical', 'Competition'],
     poster_url: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=600&h=800&fit=crop',
     registration_url: 'https://example.com/register/innovation-challenge',
   },
@@ -87,11 +96,26 @@ const HARDCODED_EVENTS: Event[] = [
 export default function EventsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
   const [events] = useState<Event[]>(HARDCODED_EVENTS);
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>(HARDCODED_EVENTS);
+  const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showPosterModal, setShowPosterModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDateEvents, setSelectedDateEvents] = useState<Event[]>([]);
   const [showDateEventsModal, setShowDateEventsModal] = useState(false);
+
+  // Filter events when filter changes
+  const handleFilterChange = (filter: string) => {
+    setSelectedFilter(filter);
+    if (filter === 'All') {
+      setFilteredEvents(events);
+    } else {
+      const filtered = events.filter(event => 
+        event.tags && event.tags.includes(filter)
+      );
+      setFilteredEvents(filtered);
+    }
+  };
 
   const handlePosterClick = (event: Event) => {
     setSelectedEvent(event);
@@ -164,24 +188,72 @@ export default function EventsPage() {
 
       {/* Card View - 3 Column Grid */}
       {viewMode === 'cards' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-          {events.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
-              onPosterClick={() => handlePosterClick(event)}
-              onInterested={() => handleInterested(event)}
-            />
-          ))}
+        <div className="space-y-6 animate-fade-in">
+          {/* Filter Buttons */}
+          <div className="flex flex-wrap gap-2 bg-card p-4 rounded-lg border">
+            {EVENT_FILTERS.map((filter) => (
+              <Button
+                key={filter}
+                variant={selectedFilter === filter ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleFilterChange(filter)}
+                className="text-xs md:text-sm"
+              >
+                {filter} {filter === 'All' ? 'Events' : ''}
+              </Button>
+            ))}
+          </div>
+
+          {/* Events Grid */}
+          {filteredEvents.length === 0 ? (
+            <div className="text-center py-12">
+              <Sparkles className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <p className="text-muted-foreground text-lg">
+                No {selectedFilter === 'All' ? '' : selectedFilter.toLowerCase()} events found
+              </p>
+              <p className="text-muted-foreground text-sm mt-2">
+                Try selecting a different filter
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredEvents.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  onPosterClick={() => handlePosterClick(event)}
+                  onInterested={() => handleInterested(event)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Calendar View */}
       {viewMode === 'calendar' && (
-        <EventsCalendar 
-          events={events} 
-          onDateClick={handleDateClick}
-        />
+        <div className="space-y-6 animate-fade-in">
+          {/* Filter Buttons */}
+          <div className="flex flex-wrap gap-2 bg-card p-4 rounded-lg border">
+            {EVENT_FILTERS.map((filter) => (
+              <Button
+                key={filter}
+                variant={selectedFilter === filter ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleFilterChange(filter)}
+                className="text-xs md:text-sm"
+              >
+                {filter} {filter === 'All' ? 'Events' : ''}
+              </Button>
+            ))}
+          </div>
+
+          {/* Calendar */}
+          <EventsCalendar 
+            events={filteredEvents} 
+            onDateClick={handleDateClick}
+          />
+        </div>
       )}
 
       {/* Event Poster Modal - Maximized View */}

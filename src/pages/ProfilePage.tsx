@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Github, Linkedin, Mail, X, Camera, MessageCircle } from 'lucide-react';
+import { Github, Linkedin, Mail, X, Camera, MessageCircle, Grid3x3, Heart } from 'lucide-react';
 import { toast } from 'sonner';
 import { ChatDialog } from '@/components/chat/ChatDialog';
 
@@ -43,10 +43,24 @@ type ProjectItem = {
   images: MediaItem[];
 };
 
+interface Post {
+  id: string;
+  content: string;
+  images: string[];
+  created_at: string;
+  profiles: {
+    username: string;
+  };
+  likes_count?: number;
+}
+
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -147,9 +161,54 @@ export default function ProfilePage() {
   };
 
   useEffect(() => {
-    if (id) fetchProfile();
+    if (id) {
+      fetchProfile();
+      fetchUserPosts();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const fetchUserPosts = async () => {
+    if (!id) return;
+    
+    try {
+      setIsLoadingPosts(true);
+      const { data, error } = await supabase
+        .from('posts' as any)
+        .select(`
+          id,
+          content,
+          images,
+          created_at,
+          profiles (username)
+        `)
+        .eq('user_id', id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      // Get likes count for each post
+      const postsWithLikes = await Promise.all(
+        ((data as any) || []).map(async (post: any) => {
+          const { data: likes } = await supabase
+            .from('post_likes' as any)
+            .select('id')
+            .eq('post_id', post.id);
+          
+          return {
+            ...post,
+            likes_count: likes?.length || 0
+          };
+        })
+      );
+      
+      setPosts(postsWithLikes);
+    } catch (error) {
+      console.error('Error fetching user posts:', error);
+    } finally {
+      setIsLoadingPosts(false);
+    }
+  };
 
   const uploadFile = async (file: File, destPath: string) => {
     try {
@@ -854,6 +913,75 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </main>
+
+      {/* User Posts Section - Instagram Style */}
+      {!isEditing && (
+        <div className="col-span-full mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Grid3x3 className="h-5 w-5" />
+                <CardTitle>Posts</CardTitle>
+                <Badge variant="secondary">{posts.length}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingPosts ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading posts...
+                </div>
+              ) : posts.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Grid3x3 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No posts yet</p>
+                  {isOwnProfile && (
+                    <p className="text-sm mt-1">Share your first post on Campus Feed!</p>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-1 md:gap-2">
+                  {posts.map((post) => (
+                    <div
+                      key={post.id}
+                      className="relative aspect-square group cursor-pointer overflow-hidden rounded-lg bg-secondary"
+                      onClick={() => navigate('/')}
+                    >
+                      {post.images && post.images.length > 0 ? (
+                        <>
+                          <img
+                            src={post.images[0]}
+                            alt="Post"
+                            className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                          />
+                          {post.images.length > 1 && (
+                            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                              +{post.images.length - 1}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center p-3">
+                          <p className="text-xs line-clamp-4 text-center">
+                            {post.content}
+                          </p>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <div className="flex items-center gap-4 text-white">
+                          <div className="flex items-center gap-1">
+                            <Heart className="h-5 w-5 fill-current" />
+                            <span className="font-semibold">{post.likes_count || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Chat Dialog */}
       <ChatDialog 

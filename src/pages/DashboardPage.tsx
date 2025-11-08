@@ -3,8 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProjectCard } from '@/components/ProjectCard';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { CheckCircle, XCircle, Clock, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Project {
@@ -18,6 +21,9 @@ interface JoinRequest {
   id: string;
   project_id: string;
   user_id: string;
+  message: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
   profiles: {
     username: string;
     college: string;
@@ -51,40 +57,69 @@ export default function DashboardPage() {
   };
 
   const fetchJoinRequests = async () => {
-    const { data } = await supabase
-      .from('join_requests')
+    if (!user) return;
+
+    // First get user's projects
+    const { data: projects } = await supabase
+      .from('projects' as any)
+      .select('id')
+      .eq('owner_id', user.id);
+
+    if (!projects || projects.length === 0) {
+      setJoinRequests([]);
+      return;
+    }
+
+    const projectIds = projects.map((p: any) => p.id);
+
+    // Then get join requests for those projects
+    const { data, error } = await supabase
+      .from('project_join_requests' as any)
       .select(`
         *,
-        profiles(*),
-        projects(title)
+        profiles!project_join_requests_user_id_fkey (username, college, skills),
+        projects!project_join_requests_project_id_fkey (title)
       `)
-      .in('project_id', myProjects.map(p => p.id));
+      .in('project_id', projectIds)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
 
-    setJoinRequests(data || []);
+    if (error) {
+      console.error('Error fetching join requests:', error);
+      return;
+    }
+
+    setJoinRequests((data as any) || []);
   };
 
-  const handleAcceptRequest = async (requestId: string, projectId: string, userId: string) => {
+  const handleAcceptRequest = async (requestId: string) => {
     try {
-      await supabase.from('project_members').insert({
-        project_id: projectId,
-        user_id: userId,
+      const { error } = await (supabase.rpc as any)('approve_join_request', {
+        request_id: requestId,
       });
 
-      await supabase.from('join_requests').delete().eq('id', requestId);
+      if (error) throw error;
 
-      toast.success('Request accepted!');
+      toast.success('Request accepted! Member added to project.');
       fetchJoinRequests();
     } catch (error: any) {
+      console.error('Error accepting request:', error);
       toast.error(error.message || 'Failed to accept request');
     }
   };
 
   const handleRejectRequest = async (requestId: string) => {
     try {
-      await supabase.from('join_requests').delete().eq('id', requestId);
+      const { error } = await (supabase.rpc as any)('reject_join_request', {
+        request_id: requestId,
+      });
+
+      if (error) throw error;
+
       toast.success('Request rejected');
       fetchJoinRequests();
     } catch (error: any) {
+      console.error('Error rejecting request:', error);
       toast.error(error.message || 'Failed to reject request');
     }
   };
@@ -118,54 +153,83 @@ export default function DashboardPage() {
         <TabsContent value="requests">
           {joinRequests.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              No pending join requests
+              <Clock className="h-16 w-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg">No pending join requests</p>
+              <p className="text-sm mt-2">
+                Requests to join your projects will appear here
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
               {joinRequests.map((request) => (
-                <Card key={request.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
+                <Card key={request.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarFallback>
+                            <User className="h-5 w-5" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <CardTitle className="text-lg">{request.profiles?.username}</CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            {request.profiles?.college}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="gap-1">
+                        <Clock className="h-3 w-3" />
+                        Pending
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Requesting to join:
+                      </p>
+                      <p className="font-medium">{request.projects?.title}</p>
+                    </div>
+
+                    {request.message && (
                       <div>
-                        <p className="font-semibold">{request.profiles.username}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {request.profiles.college}
+                        <p className="text-sm text-muted-foreground mb-1">Message:</p>
+                        <p className="text-sm bg-muted p-3 rounded-md">
+                          {request.message}
                         </p>
-                        <p className="text-sm mt-2">
-                          wants to join <span className="font-medium">{request.projects.title}</span>
-                        </p>
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {request.profiles.skills?.map((skill) => (
-                            <span
-                              key={skill}
-                              className="text-xs bg-secondary px-2 py-1 rounded"
-                            >
+                      </div>
+                    )}
+
+                    {request.profiles?.skills && request.profiles.skills.length > 0 && (
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-2">Skills:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {request.profiles.skills.map((skill: string) => (
+                            <Badge key={skill} variant="secondary">
                               {skill}
-                            </span>
+                            </Badge>
                           ))}
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            handleAcceptRequest(
-                              request.id,
-                              request.project_id,
-                              request.user_id
-                            )
-                          }
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleRejectRequest(request.id)}
-                        >
-                          Reject
-                        </Button>
-                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        className="flex-1"
+                        onClick={() => handleAcceptRequest(request.id)}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Accept
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        variant="outline"
+                        onClick={() => handleRejectRequest(request.id)}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Reject
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

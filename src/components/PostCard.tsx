@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -28,12 +29,17 @@ interface PostCardProps {
 
 export function PostCard({ post, onUpdate }: PostCardProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [likes, setLikes] = useState<number>(0);
   const [isLiked, setIsLiked] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleProfileClick = () => {
+    navigate(`/profile/${post.user_id}`);
+  };
 
   useEffect(() => {
     fetchLikes();
@@ -145,13 +151,21 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     <Card className="card-interactive">
       <CardHeader>
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
+          <Avatar 
+            className="h-10 w-10 cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+            onClick={handleProfileClick}
+          >
             <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-white font-semibold">
               {post.profiles.username[0].toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <p className="font-semibold">{post.profiles.username}</p>
+            <p 
+              className="font-semibold cursor-pointer hover:text-primary transition-colors"
+              onClick={handleProfileClick}
+            >
+              {post.profiles.username}
+            </p>
             <p className="text-xs text-muted-foreground">
               {post.profiles.college} • {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
             </p>
