@@ -1,0 +1,9 @@
+# NIT-Goa-Hackathon
+#Campus Connect — The Ultimate Student Collaboration Hub Theme: Full Stack Web Development | Social + Productivity Platform
+Problem Context In today’s fast-paced academic world, students have plenty of ideas but often struggle to find the right people to bring them to life. Finding teammates for hackathons, research projects, or creative collaborations can be difficult — existing platforms like LinkedIn are too professional, while social media lacks skill-based discovery. This disconnect causes many student ideas and initiatives to remain unfulfilled — not due to a lack of creativity, but because of the absence of a structured, student-focused collaboration ecosystem. There is a need for a dedicated platform that connects students across colleges, enabling them to find peers with complementary skills, form project teams, and collaborate effectively on shared interests.
+Problem Statement Design and develop a web-based collaboration platform that allows students from different colleges to connect, share project ideas, form teams, and participate in academic or creative ventures. The platform should serve as a centralized hub for student networking, idea sharing, and event discovery — fostering a vibrant ecosystem of collaboration, innovation, and productivity.
+Core Requirements
+1. User Interface ● A responsive and modern web platform with a clean, user-friendly layout. ● Personalized dashboard displaying recent activities, recommended projects, and upcoming student events.
+2. User Authentication System ● Secure signup and login using Firebase Authentication or JWT-based authentication. ● Password encryption and validation to protect user data and privacy.
+3. Profile Management ● Customizable student profiles containing name, college, branch/year, skills, and interests. ● Option to showcase GitHub, LinkedIn, or portfolio links, along with past projects and achievements.
+4. Project & Idea Posting
