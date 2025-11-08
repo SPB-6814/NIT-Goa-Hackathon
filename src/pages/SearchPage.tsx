@@ -220,8 +220,8 @@ export default function SearchPage() {
             </div>
           )}
 
-          {(filters.query || filters.skillFilter) && profiles.filter(p => !recentProfiles.some(r => r.id === p.id)).length > 0 ? (
-            profiles.filter(p => !recentProfiles.some(r => r.id === p.id)).map((profile) => (
+          {(filters.query || filters.skillFilter) && profiles.length > 0 ? (
+            profiles.map((profile) => (
               <Link key={profile.id} to={`/profile/${profile.id}`} onClick={() => addToRecent(profile)}>
                 <Card className="hover:bg-accent/50 transition-colors">
                   <CardContent className="p-6">
