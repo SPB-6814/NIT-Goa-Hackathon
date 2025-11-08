@@ -1,7 +1,8 @@
 import { Home, Calendar, Search, FolderKanban, Bell, Settings, Plus, PenSquare, User, LogOut } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { CreatePostDialog } from '@/components/CreatePostDialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +18,23 @@ export const Sidebar = () => {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [showPostForm, setShowPostForm] = useState(false);
   const { user, signOut } = useAuth();
+  const [username, setUsername] = useState<string>('');
+
+  // Fetch username from profiles table
+  useEffect(() => {
+    if (user?.id) {
+      supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single()
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setUsername(data.username);
+          }
+        });
+    }
+  }, [user?.id]);
 
   const navItems = [
     { title: 'Home', url: '/', icon: Home },
@@ -79,10 +97,10 @@ export const Sidebar = () => {
             <DropdownMenuTrigger asChild>
               <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-sidebar-accent/50 cursor-pointer hover:bg-sidebar-accent transition-colors">
                 <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-sm">
-                  {user?.email?.[0]?.toUpperCase() || 'U'}
+                  {username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{user?.email || 'Your Profile'}</p>
+                  <p className="text-sm font-semibold truncate">{username || 'Your Profile'}</p>
                   <p className="text-xs text-muted-foreground truncate">View & Edit</p>
                 </div>
               </div>
