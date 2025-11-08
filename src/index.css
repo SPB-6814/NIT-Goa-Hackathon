@@ -1,13 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* Chess.com + Reddit inspired design system - gamified, casual, community-focused
+All colors MUST be HSL for dark theme support.
 */
 
 @layer base {
   :root {
+    /* Light theme (fallback - dark is default) */
     --background: 220 25% 98%;
     --foreground: 220 15% 15%;
 
@@ -17,7 +20,7 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 220 15% 15%;
 
-    --primary: 217 91% 60%;
+    --primary: 223 76% 62%; /* Chess.com vibrant blue */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 20% 96%;
@@ -26,7 +29,7 @@ All colors MUST be HSL.
     --muted: 220 20% 96%;
     --muted-foreground: 220 10% 45%;
 
-    --accent: 262 83% 58%;
+    --accent: 17 100% 62%; /* Chess.com orange for actions */
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -34,79 +37,65 @@ All colors MUST be HSL.
 
     --border: 220 15% 88%;
     --input: 220 15% 88%;
-    --ring: 217 91% 60%;
+    --ring: 223 76% 62%;
 
-    --radius: 0.75rem;
+    --radius: 1rem; /* More rounded by default */
 
     --sidebar-background: 220 25% 98%;
     --sidebar-foreground: 220 15% 15%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary: 223 76% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 220 20% 96%;
     --sidebar-accent-foreground: 220 15% 15%;
     --sidebar-border: 220 15% 88%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-ring: 223 76% 62%;
 
-    --success: 142 76% 36%;
+    --success: 142 76% 45%;
     --success-foreground: 0 0% 100%;
-
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(262 83% 58%));
-    --gradient-card: linear-gradient(to bottom, hsl(0 0% 100%), hsl(220 20% 98%));
-    
-    --shadow-sm: 0 1px 2px 0 hsl(220 15% 15% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(220 15% 15% / 0.1), 0 2px 4px -2px hsl(220 15% 15% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(220 15% 15% / 0.1), 0 4px 6px -4px hsl(220 15% 15% / 0.1);
-    --shadow-xl: 0 20px 25px -5px hsl(220 15% 15% / 0.1), 0 8px 10px -6px hsl(220 15% 15% / 0.1);
   }
 
   .dark {
-    --background: 220 20% 10%;
-    --foreground: 220 10% 95%;
+    /* Chess.com-inspired dark theme - deep grays, vibrant accents */
+    --background: 220 18% 8%; /* Deep charcoal, not pure black */
+    --foreground: 210 15% 92%; /* Soft white for readability */
 
-    --card: 220 18% 12%;
-    --card-foreground: 220 10% 95%;
+    --card: 220 16% 12%; /* Slightly lighter than background */
+    --card-foreground: 210 15% 92%;
 
-    --popover: 220 18% 12%;
-    --popover-foreground: 220 10% 95%;
+    --popover: 220 16% 14%;
+    --popover-foreground: 210 15% 92%;
 
-    --primary: 217 91% 60%;
+    --primary: 223 76% 62%; /* Chess.com vibrant blue #5E7CE2 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 220 10% 95%;
+    --secondary: 220 14% 18%; /* Subtle gray for secondary elements */
+    --secondary-foreground: 210 15% 92%;
 
-    --muted: 220 15% 18%;
-    --muted-foreground: 220 10% 65%;
+    --muted: 220 14% 20%;
+    --muted-foreground: 210 10% 60%; /* Softer muted text */
 
-    --accent: 262 83% 58%;
+    --accent: 17 100% 62%; /* Chess.com orange #FF793F */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 62%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 22%;
-    --input: 220 15% 22%;
-    --ring: 217 91% 60%;
+    --border: 220 14% 22%; /* Subtle borders */
+    --input: 220 14% 20%;
+    --ring: 223 76% 62%;
 
-    --sidebar-background: 220 20% 10%;
-    --sidebar-foreground: 220 10% 95%;
-    --sidebar-primary: 217 91% 60%;
+    /* Reddit-style sidebar - darker than main content */
+    --sidebar-background: 220 20% 6%; /* Even darker for depth */
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-primary: 223 76% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 18%;
-    --sidebar-accent-foreground: 220 10% 95%;
-    --sidebar-border: 220 15% 22%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 220 14% 16%;
+    --sidebar-accent-foreground: 210 15% 92%;
+    --sidebar-border: 220 14% 18%;
+    --sidebar-ring: 223 76% 62%;
 
-    --success: 142 76% 36%;
+    --success: 142 76% 50%;
     --success-foreground: 0 0% 100%;
-
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(262 83% 58%));
-    --gradient-card: linear-gradient(to bottom, hsl(220 18% 12%), hsl(220 20% 10%));
-    
-    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.2), 0 2px 4px -2px hsl(0 0% 0% / 0.2);
-    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.3), 0 4px 6px -4px hsl(0 0% 0% / 0.3);
-    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.4), 0 8px 10px -6px hsl(0 0% 0% / 0.4);
   }
 }
 
@@ -115,7 +104,101 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    @apply dark; /* Default to dark theme like Chess.com */
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: "opsz" auto;
+  }
+
+  /* Smooth scrolling for better UX */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar - Chess.com style */
+  ::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-pill;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/50;
+  }
+}
+
+@layer components {
+  /* Gamified button styles with lift effect */
+  .btn-gamified {
+    @apply transform transition-all duration-200 ease-bounce-out;
+    @apply hover:scale-105 hover:shadow-glow-md;
+    @apply active:scale-95;
+  }
+
+  /* Card hover effect - lifts and glows */
+  .card-interactive {
+    @apply transform transition-all duration-300 ease-out;
+    @apply hover:-translate-y-1 hover:shadow-card-hover;
+  }
+
+  /* Gradient text effect */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+
+  /* Progress bar with gradient */
+  .progress-gamified {
+    @apply h-3 rounded-pill overflow-hidden bg-muted;
+  }
+
+  .progress-gamified-fill {
+    @apply h-full bg-gradient-to-r from-primary via-accent to-success rounded-pill;
+    @apply transition-all duration-500 ease-out;
+  }
+
+  /* Badge with glow */
+  .badge-glow {
+    @apply shadow-glow-sm hover:shadow-glow-md transition-shadow duration-200;
+  }
+
+  /* Input focus effect - subtle scale */
+  .input-focus {
+    @apply focus-within:scale-[1.02] transition-transform duration-200;
+  }
+}
+
+@layer utilities {
+  /* Utility for gradient backgrounds */
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, hsl(223 76% 62%), hsl(262 83% 58%));
+  }
+
+  .bg-gradient-accent {
+    background: linear-gradient(135deg, hsl(17 100% 62%), hsl(0 84% 62%));
+  }
+
+  .bg-gradient-card {
+    background: linear-gradient(to bottom, hsl(220 16% 14%), hsl(220 18% 10%));
+  }
+
+  /* Text shadows for depth */
+  .text-shadow-sm {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
+  .text-shadow-md {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   }
 }

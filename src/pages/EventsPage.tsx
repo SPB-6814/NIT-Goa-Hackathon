@@ -1,79 +1,156 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Calendar, MapPin } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { LayoutGrid, CalendarDays, ArrowLeft, Sparkles } from 'lucide-react';
+import { EventCard } from '@/components/EventCard';
+import { EventsCalendar } from '@/components/EventsCalendar';
+import { EventDetailModal } from '@/components/EventDetailModal';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
-const events = [
-  {
-    id: 1,
-    title: 'HackMIT 2024',
-    description: "MIT's annual hackathon bringing together students from around the world",
-    date: 'September 14-15, 2024',
-    location: 'MIT Campus, Cambridge MA',
-    type: 'Hackathon',
-  },
-  {
-    id: 2,
-    title: 'React Workshop',
-    description: 'Learn modern React development with hooks and best practices',
-    date: 'October 5, 2024',
-    location: 'Online',
-    type: 'Workshop',
-  },
-  {
-    id: 3,
-    title: 'Startup Weekend',
-    description: '54-hour event where you can pitch ideas, form teams, and launch startups',
-    date: 'November 1-3, 2024',
-    location: 'Innovation Hub',
-    type: 'Competition',
-  },
-  {
-    id: 4,
-    title: 'AI & ML Symposium',
-    description: 'Explore the latest in artificial intelligence and machine learning',
-    date: 'December 10, 2024',
-    location: 'University Auditorium',
-    type: 'Conference',
-  },
-];
+interface Event {
+  id: string;
+  title: string;
+  description: string;
+  event_date: string;
+  location: string;
+  event_type: string;
+  brochure_url?: string;
+  registration_url?: string;
+}
+
+type ViewMode = 'cards' | 'calendar';
 
 export default function EventsPage() {
+  const [viewMode, setViewMode] = useState<ViewMode>('cards');
+  const [events, setEvents] = useState<Event[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events' as any)
+        .select('*')
+        .order('event_date', { ascending: true });
+
+      if (error) throw error;
+      setEvents((data as any) || []);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      toast.error('Failed to load events');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEventClick = (event: Event) => {
+    setSelectedEvent(event);
+    setShowEventModal(true);
+  };
+
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Upcoming Events</h1>
-        <p className="text-muted-foreground">
-          Discover hackathons, workshops, and networking opportunities
-        </p>
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold text-gradient flex items-center gap-3 mb-2">
+            <Sparkles className="h-8 w-8" />
+            {viewMode === 'cards' ? 'Upcoming Events' : 'Events Calendar'}
+          </h1>
+          <p className="text-muted-foreground">
+            {viewMode === 'cards' 
+              ? 'Discover hackathons, workshops, and networking opportunities'
+              : 'View all events in calendar format'}
+          </p>
+        </div>
+
+        {/* View Toggle */}
+        <div className="flex gap-2">
+          {viewMode === 'calendar' && (
+            <Button
+              variant="outline"
+              onClick={() => setViewMode('cards')}
+              className="hover:scale-105 transition-transform"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Cards
+            </Button>
+          )}
+          
+          {viewMode === 'cards' ? (
+            <Button
+              variant="gradient"
+              onClick={() => setViewMode('calendar')}
+              className="shadow-glow-md hover:shadow-glow-lg hover:scale-105"
+            >
+              <CalendarDays className="mr-2 h-5 w-5" />
+              Calendar View
+            </Button>
+          ) : (
+            <Button
+              variant="gradient"
+              onClick={() => setViewMode('cards')}
+              className="shadow-glow-md hover:shadow-glow-lg hover:scale-105"
+            >
+              <LayoutGrid className="mr-2 h-5 w-5" />
+              Card View
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-4">
-        {events.map((event) => (
-          <Card key={event.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-xl mb-2">{event.title}</CardTitle>
-                  <CardDescription>{event.description}</CardDescription>
+      {/* Loading State */}
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+          <p className="mt-4 text-muted-foreground">Loading events...</p>
+        </div>
+      ) : (
+        <>
+          {/* Card View */}
+          {viewMode === 'cards' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {events.length > 0 ? (
+                events.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    onClick={() => handleEventClick(event)}
+                  />
+                ))
+              ) : (
+                <div className="col-span-full text-center py-12">
+                  <Sparkles className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
+                  <p className="text-xl text-muted-foreground">No events found</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Check back later for upcoming events!
+                  </p>
                 </div>
-                <Badge variant="outline">{event.type}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  {event.date}
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  {event.location}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              )}
+            </div>
+          )}
+
+          {/* Calendar View */}
+          {viewMode === 'calendar' && (
+            <EventsCalendar 
+              events={events} 
+              onEventClick={handleEventClick}
+            />
+          )}
+        </>
+      )}
+
+      {/* Event Detail Modal */}
+      <EventDetailModal
+        event={selectedEvent}
+        open={showEventModal}
+        onOpenChange={setShowEventModal}
+      />
     </div>
   );
 }

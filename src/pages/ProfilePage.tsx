@@ -298,9 +298,20 @@ export default function ProfilePage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Profile</CardTitle>
-              {isOwnProfile && !isEditing && <Button onClick={() => setIsEditing(true)}>Edit</Button>}
-            </div>
+                <CardTitle>Profile</CardTitle>
+              {isOwnProfile && (
+                isEditing ? (
+                  <Button variant="outline" onClick={() => {
+                    setIsEditing(false);
+                    fetchProfile(); // Reset form to saved state
+                  }}>
+                    ← Back to Profile
+                  </Button>
+                ) : (
+                  <Button onClick={() => setIsEditing(true)}>Edit</Button>
+                )
+              )}
+              </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Skills / Interests */}

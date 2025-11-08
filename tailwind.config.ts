@@ -62,10 +62,25 @@ export default {
           foreground: "hsl(var(--success-foreground))",
         },
       },
+      fontFamily: {
+        sans: ['Nunito Sans', 'IBM Plex Sans', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['Nunito Sans', 'system-ui', 'sans-serif'],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "1.5rem",
+        "2xl": "2rem",
+        "3xl": "3rem",
+        pill: "9999px",
+      },
+      boxShadow: {
+        'glow-sm': '0 0 10px rgba(94, 124, 226, 0.3)',
+        'glow-md': '0 0 20px rgba(94, 124, 226, 0.4)',
+        'glow-lg': '0 0 30px rgba(94, 124, 226, 0.5)',
+        'glow-orange': '0 0 20px rgba(255, 121, 63, 0.4)',
+        'card-hover': '0 8px 24px rgba(0, 0, 0, 0.3), 0 0 16px rgba(94, 124, 226, 0.2)',
       },
       keyframes: {
         "accordion-down": {
@@ -84,10 +99,53 @@ export default {
             height: "0",
           },
         },
+        "bounce-subtle": {
+          "0%, 100%": {
+            transform: "translateY(0)",
+          },
+          "50%": {
+            transform: "translateY(-4px)",
+          },
+        },
+        "scale-in": {
+          "0%": {
+            transform: "scale(0.95)",
+            opacity: "0",
+          },
+          "100%": {
+            transform: "scale(1)",
+            opacity: "1",
+          },
+        },
+        "slide-up": {
+          "0%": {
+            transform: "translateY(10px)",
+            opacity: "0",
+          },
+          "100%": {
+            transform: "translateY(0)",
+            opacity: "1",
+          },
+        },
+        "glow-pulse": {
+          "0%, 100%": {
+            boxShadow: "0 0 10px rgba(94, 124, 226, 0.3)",
+          },
+          "50%": {
+            boxShadow: "0 0 20px rgba(94, 124, 226, 0.6)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "bounce-subtle": "bounce-subtle 2s ease-in-out infinite",
+        "scale-in": "scale-in 0.2s ease-out",
+        "slide-up": "slide-up 0.3s ease-out",
+        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+      },
+      transitionTimingFunction: {
+        'bounce-out': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
       },
     },
   },
