@@ -106,15 +106,8 @@ const CollegesMap: React.FC = () => {
   }, []);
 
   return (
-    <div className="colleges-map-wrapper" style={{ height: '100%' }}>
-      <div className="header">
-        <h1>🎓 Colleges in Goa, India</h1>
-        <p>Click on markers to view college information</p>
-      </div>
-
-      <div className="map-container">
-        <div ref={mapRef} id="map" style={{ height: '100%' }} />
-      </div>
+    <div className="colleges-map-wrapper" style={{ height: '100vh', width: '100%' }}>
+      <div ref={mapRef} id="map" style={{ height: '100%', width: '100%' }} />
     </div>
   );
 };
