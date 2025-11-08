@@ -22,7 +22,7 @@ export function FloatingChatButton() {
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'messages'
+        table: 'chat_messages'
       }, () => {
         fetchUnreadCount();
       })

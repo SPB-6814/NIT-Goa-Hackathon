@@ -34,12 +34,19 @@ export function MessageList({ conversationId }: MessageListProps) {
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId) {
+      setError('No conversation ID provided');
+      setLoading(false);
+      return;
+    }
     
+    console.log('Loading conversation:', conversationId);
+    setError(null);
     fetchMessages();
     markMessagesAsRead();
 
@@ -49,7 +56,7 @@ export function MessageList({ conversationId }: MessageListProps) {
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
-        table: 'messages',
+        table: 'chat_messages',
         filter: `conversation_id=eq.${conversationId}`
       }, (payload) => {
         fetchMessages();
@@ -72,8 +79,9 @@ export function MessageList({ conversationId }: MessageListProps) {
 
   const fetchMessages = async () => {
     try {
+      console.log('Fetching messages for conversation:', conversationId);
       const { data, error } = await supabase
-        .from('messages' as any)
+        .from('chat_messages' as any)
         .select(`
           *,
           profiles:sender_id (
@@ -85,10 +93,18 @@ export function MessageList({ conversationId }: MessageListProps) {
         .eq('is_deleted', false)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching messages:', error);
+        throw error;
+      }
+      
+      console.log('Messages loaded:', data?.length || 0);
       setMessages((data as any) || []);
-    } catch (error) {
+      setError(null);
+    } catch (error: any) {
       console.error('Error fetching messages:', error);
+      setError(error.message || 'Failed to load messages');
+      toast.error('Failed to load conversation');
     } finally {
       setLoading(false);
     }
@@ -130,7 +146,7 @@ export function MessageList({ conversationId }: MessageListProps) {
     setIsSending(true);
     try {
       const { error } = await supabase
-        .from('messages' as any)
+        .from('chat_messages' as any)
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
@@ -175,7 +191,7 @@ export function MessageList({ conversationId }: MessageListProps) {
       const { data } = supabase.storage.from('chat-files').getPublicUrl(fileName);
 
       const { error: msgError } = await supabase
-        .from('messages' as any)
+        .from('chat_messages' as any)
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
@@ -203,6 +219,21 @@ export function MessageList({ conversationId }: MessageListProps) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 p-6 text-center">
+        <p className="text-muted-foreground">⚠️ {error}</p>
+        <Button onClick={() => {
+          setError(null);
+          setLoading(true);
+          fetchMessages();
+        }}>
+          Try Again
+        </Button>
       </div>
     );
   }

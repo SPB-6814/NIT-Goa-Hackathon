@@ -131,7 +131,7 @@ export function ConversationList({ onSelectConversation, selectedId }: Conversat
 
       // Get last message for each conversation
       const { data: lastMessages, error: msgError } = await supabase
-        .from('messages' as any)
+        .from('chat_messages' as any)
         .select('conversation_id, content, created_at, sender_id')
         .in('conversation_id', convIds)
         .order('created_at', { ascending: false });

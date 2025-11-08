@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,13 @@ export function ChatDialog({ open, onOpenChange, initialConversationId }: ChatDi
     initialConversationId
   );
   const [activeTab, setActiveTab] = useState('direct');
+
+  // Update selected conversation when initialConversationId changes
+  useEffect(() => {
+    if (initialConversationId) {
+      setSelectedConversationId(initialConversationId);
+    }
+  }, [initialConversationId]);
 
   const handleSelectConversation = (id: string) => {
     setSelectedConversationId(id);

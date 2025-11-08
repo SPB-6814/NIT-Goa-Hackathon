@@ -368,6 +368,8 @@ export default function ProfilePage() {
     if (!user || !profile || user.id === profile.id) return;
 
     try {
+      console.log('Creating conversation between:', user.id, 'and', profile.id);
+      
       const { data, error } = await (supabase.rpc as any)('get_or_create_direct_conversation', {
         user1_id: user.id,
         user2_id: profile.id
@@ -378,20 +380,25 @@ export default function ProfilePage() {
         throw error;
       }
 
+      console.log('Conversation ID received:', data);
+
       if (!data) {
         throw new Error('No conversation ID returned');
       }
 
       setChatConversationId(data);
       setShowChat(true);
+      toast.success('Opening conversation...');
     } catch (error: any) {
       console.error('Error starting chat:', error);
       
       // Provide more helpful error message
       if (error.message?.includes('function') || error.code === '42883') {
-        toast.error('Chat system not set up yet. Please contact administrator to run the database migration.');
+        toast.error('Chat system not set up yet. Please run the database migration.');
+      } else if (error.message?.includes('permission')) {
+        toast.error('Permission denied. Please check database policies.');
       } else {
-        toast.error('Failed to start conversation. Please try again.');
+        toast.error('Failed to start conversation: ' + (error.message || 'Unknown error'));
       }
     }
   };

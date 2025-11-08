@@ -21,8 +21,9 @@ CREATE TABLE IF NOT EXISTS conversation_participants (
   UNIQUE(conversation_id, user_id)
 );
 
--- Messages table
-CREATE TABLE IF NOT EXISTS messages (
+-- Chat Messages table (for DMs and group chats)
+-- Note: Renamed from 'messages' to 'chat_messages' to avoid conflict with existing project messages table
+CREATE TABLE IF NOT EXISTS chat_messages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   sender_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -30,7 +31,7 @@ CREATE TABLE IF NOT EXISTS messages (
   file_url text, -- For file attachments
   file_name text,
   file_type text,
-  replied_to_id uuid REFERENCES messages(id) ON DELETE SET NULL, -- For threading
+  replied_to_id uuid REFERENCES chat_messages(id) ON DELETE SET NULL, -- For threading
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   is_deleted boolean DEFAULT false
@@ -39,7 +40,7 @@ CREATE TABLE IF NOT EXISTS messages (
 -- Message read status
 CREATE TABLE IF NOT EXISTS message_reads (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  message_id uuid NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  message_id uuid NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   read_at timestamptz DEFAULT now(),
   UNIQUE(message_id, user_id)
@@ -62,9 +63,9 @@ CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
 CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_participants_user ON conversation_participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_participants_conv ON conversation_participants(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
-CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON chat_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_message_reads_user ON message_reads(user_id);
 CREATE INDEX IF NOT EXISTS idx_team_recommendations_project ON team_recommendations(project_id);
 
@@ -123,10 +124,10 @@ CREATE POLICY "Admins can remove participants"
   );
 
 -- Messages
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view messages in their conversations"
-  ON messages FOR SELECT
+  ON chat_messages FOR SELECT
   USING (
     conversation_id IN (
       SELECT conversation_id 
@@ -136,7 +137,7 @@ CREATE POLICY "Users can view messages in their conversations"
   );
 
 CREATE POLICY "Users can send messages to their conversations"
-  ON messages FOR INSERT
+  ON chat_messages FOR INSERT
   WITH CHECK (
     sender_id = auth.uid() AND
     conversation_id IN (
@@ -147,12 +148,12 @@ CREATE POLICY "Users can send messages to their conversations"
   );
 
 CREATE POLICY "Users can update their own messages"
-  ON messages FOR UPDATE
+  ON chat_messages FOR UPDATE
   USING (sender_id = auth.uid())
   WITH CHECK (sender_id = auth.uid());
 
 CREATE POLICY "Users can delete their own messages"
-  ON messages FOR DELETE
+  ON chat_messages FOR DELETE
   USING (sender_id = auth.uid());
 
 -- Message reads
@@ -162,7 +163,7 @@ CREATE POLICY "Users can view read status"
   ON message_reads FOR SELECT
   USING (
     message_id IN (
-      SELECT id FROM messages WHERE conversation_id IN (
+      SELECT id FROM chat_messages WHERE conversation_id IN (
         SELECT conversation_id 
         FROM conversation_participants 
         WHERE user_id = auth.uid()
@@ -188,7 +189,7 @@ CREATE POLICY "System can create recommendations"
 -- Enable realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
 ALTER PUBLICATION supabase_realtime ADD TABLE conversation_participants;
-ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE message_reads;
 ALTER PUBLICATION supabase_realtime ADD TABLE team_recommendations;
 
@@ -243,7 +244,7 @@ BEGIN
   SELECT 
     m.conversation_id,
     COUNT(m.id) as unread_count
-  FROM messages m
+  FROM chat_messages m
   WHERE m.conversation_id IN (
     SELECT cp.conversation_id 
     FROM conversation_participants cp 
@@ -262,8 +263,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Comments
 COMMENT ON TABLE conversations IS 'Stores all conversation threads (DMs, group chats, project chats)';
 COMMENT ON TABLE conversation_participants IS 'Many-to-many relationship between users and conversations';
-COMMENT ON TABLE messages IS 'All messages sent in conversations with support for files and threading';
-COMMENT ON TABLE message_reads IS 'Tracks which messages have been read by which users';
+COMMENT ON TABLE chat_messages IS 'All messages sent in DM/group conversations (separate from project messages)';
+COMMENT ON TABLE message_reads IS 'Tracks which chat messages have been read by which users';
 COMMENT ON TABLE team_recommendations IS 'AI-generated team member recommendations for projects';
 
 -- Storage bucket for chat files
@@ -272,6 +273,12 @@ VALUES ('chat-files', 'chat-files', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for chat files
+-- Drop existing policies if they exist to avoid conflicts
+DROP POLICY IF EXISTS "Anyone can view chat files" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload chat files" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete their own chat files" ON storage.objects;
+
+-- Create storage policies
 CREATE POLICY "Anyone can view chat files"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'chat-files');
