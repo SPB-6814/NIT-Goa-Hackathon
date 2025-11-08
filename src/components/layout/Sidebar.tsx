@@ -1,13 +1,22 @@
-import { Home, Calendar, Search, FolderKanban, Bell, Settings, Plus, PenSquare } from 'lucide-react';
+import { Home, Calendar, Search, FolderKanban, Bell, Settings, Plus, PenSquare, User, LogOut } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { CreatePostDialog } from '@/components/CreatePostDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { Link } from 'react-router-dom';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export const Sidebar = () => {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [showPostForm, setShowPostForm] = useState(false);
+  const { user, signOut } = useAuth();
 
   const navItems = [
     { title: 'Home', url: '/', icon: Home },
@@ -64,17 +73,33 @@ export const Sidebar = () => {
           ))}
         </nav>
 
-        {/* Footer area - could add user quick actions */}
+        {/* Footer area with profile dropdown */}
         <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-sidebar-accent/50">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-sm">
-              U
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">Your Profile</p>
-              <p className="text-xs text-muted-foreground truncate">View & Edit</p>
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-sidebar-accent/50 cursor-pointer hover:bg-sidebar-accent transition-colors">
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-sm">
+                  {user?.email?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{user?.email || 'Your Profile'}</p>
+                  <p className="text-xs text-muted-foreground truncate">View & Edit</p>
+                </div>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link to={`/profile/${user?.id}`} className="flex items-center">
+                  <User className="mr-2 h-4 w-4" />
+                  My Profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={signOut} className="flex items-center text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
 

@@ -18,25 +18,7 @@ export const TopBar = () => {
         Campus Connect
       </h1>
       
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <User className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild>
-            <Link to={`/profile/${user?.id}`}>
-              <User className="mr-2 h-4 w-4" />
-              My Profile
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={signOut}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* Profile menu moved to sidebar */}
     </div>
   );
 };
