@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { CheckCircle, XCircle, Clock, User } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, User, FolderKanban } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Project {
@@ -96,7 +96,7 @@ export default function DashboardPage() {
     try {
       // Get request details first
       const { data: request, error: fetchError } = await supabase
-        .from('join_requests')
+        .from('project_join_requests' as any)
         .select('project_id, user_id')
         .eq('id', requestId)
         .single();
@@ -106,7 +106,7 @@ export default function DashboardPage() {
 
       // Update request status to approved
       const { error: updateError } = await supabase
-        .from('join_requests')
+        .from('project_join_requests' as any)
         .update({ status: 'approved' })
         .eq('id', requestId);
 
@@ -157,9 +157,10 @@ export default function DashboardPage() {
 
   const handleRejectRequest = async (requestId: string) => {
     try {
-      const { error } = await (supabase.rpc as any)('reject_join_request', {
-        request_id: requestId,
-      });
+      const { error } = await supabase
+        .from('project_join_requests' as any)
+        .update({ status: 'rejected' })
+        .eq('id', requestId);
 
       if (error) throw error;
 
@@ -172,26 +173,33 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">My Dashboard</h1>
+    <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">My Dashboard</h1>
 
       <Tabs defaultValue="projects">
-        <TabsList>
-          <TabsTrigger value="projects">My Projects</TabsTrigger>
-          <TabsTrigger value="requests">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="projects" className="flex-1 sm:flex-none">My Projects</TabsTrigger>
+          <TabsTrigger value="requests" className="flex-1 sm:flex-none">
             Join Requests {joinRequests.length > 0 && `(${joinRequests.length})`}
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="projects">
+        <TabsContent value="projects" className="mt-4 sm:mt-6">
           {myProjects.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              You haven't created any projects yet
+            <div className="text-center py-8 sm:py-12">
+              <FolderKanban className="h-12 w-12 sm:h-16 sm:w-16 mx-auto text-muted-foreground mb-3 sm:mb-4 opacity-50" />
+              <p className="text-muted-foreground text-sm sm:text-base">You haven't created any projects yet</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {myProjects.map((project) => (
-                <ProjectCard key={project.id} {...project} />
+                <ProjectCard 
+                  key={project.id} 
+                  id={project.id}
+                  title={project.title}
+                  description={project.description}
+                  skills_needed={project.skills_needed}
+                />
               ))}
             </div>
           )}
@@ -199,50 +207,50 @@ export default function DashboardPage() {
 
         <TabsContent value="requests">
           {joinRequests.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Clock className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg">No pending join requests</p>
-              <p className="text-sm mt-2">
+            <div className="text-center py-8 sm:py-12 text-muted-foreground">
+              <Clock className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-3 sm:mb-4 opacity-50" />
+              <p className="text-base sm:text-lg">No pending join requests</p>
+              <p className="text-xs sm:text-sm mt-2">
                 Requests to join your projects will appear here
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {joinRequests.map((request) => (
                 <Card key={request.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
+                  <CardHeader className="p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <Avatar>
+                        <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
                           <AvatarFallback>
-                            <User className="h-5 w-5" />
+                            <User className="h-4 w-4 sm:h-5 sm:w-5" />
                           </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <CardTitle className="text-lg">{request.profiles?.username}</CardTitle>
-                          <p className="text-sm text-muted-foreground">
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="text-base sm:text-lg truncate">{request.profiles?.username}</CardTitle>
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">
                             {request.profiles?.college}
                           </p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="gap-1">
+                      <Badge variant="outline" className="gap-1 self-start">
                         <Clock className="h-3 w-3" />
                         Pending
                       </Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6 pt-0">
                     <div>
-                      <p className="text-sm text-muted-foreground mb-1">
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                         Requesting to join:
                       </p>
-                      <p className="font-medium">{request.projects?.title}</p>
+                      <p className="font-medium text-sm sm:text-base truncate">{request.projects?.title}</p>
                     </div>
 
                     {request.message && (
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Message:</p>
-                        <p className="text-sm bg-muted p-3 rounded-md">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">Message:</p>
+                        <p className="text-xs sm:text-sm bg-muted p-2 sm:p-3 rounded-md line-clamp-3">
                           {request.message}
                         </p>
                       </div>
@@ -250,10 +258,10 @@ export default function DashboardPage() {
 
                     {request.profiles?.skills && request.profiles.skills.length > 0 && (
                       <div>
-                        <p className="text-sm text-muted-foreground mb-2">Skills:</p>
-                        <div className="flex flex-wrap gap-1.5">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-2">Skills:</p>
+                        <div className="flex flex-wrap gap-1 sm:gap-1.5">
                           {request.profiles.skills.map((skill: string) => (
-                            <Badge key={skill} variant="secondary">
+                            <Badge key={skill} variant="secondary" className="text-xs">
                               {skill}
                             </Badge>
                           ))}
@@ -261,10 +269,11 @@ export default function DashboardPage() {
                       </div>
                     )}
 
-                    <div className="flex gap-2 pt-2">
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
                       <Button
                         className="flex-1"
                         onClick={() => handleAcceptRequest(request.id)}
+                        size="sm"
                       >
                         <CheckCircle className="h-4 w-4 mr-2" />
                         Accept
@@ -273,6 +282,7 @@ export default function DashboardPage() {
                         className="flex-1"
                         variant="outline"
                         onClick={() => handleRejectRequest(request.id)}
+                        size="sm"
                       >
                         <XCircle className="h-4 w-4 mr-2" />
                         Reject

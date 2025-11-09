@@ -89,7 +89,8 @@ export const Sidebar = () => {
 
   return (
     <>
-      <aside className="w-64 border-r border-sidebar-border bg-sidebar flex flex-col h-full">
+      {/* Mobile and Desktop Sidebar */}
+      <aside className="hidden lg:flex w-64 border-r border-sidebar-border bg-sidebar flex-col h-full">
         {/* Reddit-style logo/brand area */}
         <div className="p-4 border-b border-sidebar-border">
           <h1 className="text-xl font-bold text-gradient">Campus Connect</h1>
@@ -102,18 +103,18 @@ export const Sidebar = () => {
             onClick={() => setShowPostForm(true)}
             variant="accent"
             size="pill"
-            className="w-full font-bold shadow-glow-orange hover:shadow-glow-lg"
+            className="w-full font-bold shadow-glow-orange hover:shadow-glow-lg text-sm"
           >
-            <PenSquare className="mr-2 h-5 w-5" />
+            <PenSquare className="mr-2 h-4 w-4 lg:h-5 lg:w-5" />
             Create Post
           </Button>
           <Button 
             onClick={() => setShowProjectForm(true)}
             variant="gradient"
             size="pill"
-            className="w-full font-bold shadow-glow-md hover:shadow-glow-lg"
+            className="w-full font-bold shadow-glow-md hover:shadow-glow-lg text-sm"
           >
-            <Plus className="mr-2 h-5 w-5" />
+            <Plus className="mr-2 h-4 w-4 lg:h-5 lg:w-5" />
             Create Project
           </Button>
         </div>

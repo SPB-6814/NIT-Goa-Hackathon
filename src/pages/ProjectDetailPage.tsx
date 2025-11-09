@@ -81,7 +81,7 @@ export default function ProjectDetailPage() {
 
       if (user) {
         const { data: requestData } = await supabase
-          .from('join_requests')
+          .from('project_join_requests' as any)
           .select('*')
           .eq('project_id', id)
           .eq('user_id', user.id)
@@ -116,7 +116,7 @@ export default function ProjectDetailPage() {
     try {
       // First, check if a request already exists
       const { data: existingRequest } = await supabase
-        .from('join_requests')
+        .from('project_join_requests' as any)
         .select('*')
         .eq('project_id', id)
         .eq('user_id', user.id)
@@ -132,7 +132,7 @@ export default function ProjectDetailPage() {
         // If request was rejected, allow them to try again by updating the existing request
         if (existingRequest.status === 'rejected') {
           const { error: updateError } = await supabase
-            .from('join_requests')
+            .from('project_join_requests' as any)
             .update({ 
               status: 'pending',
               created_at: new Date().toISOString()
@@ -155,7 +155,7 @@ export default function ProjectDetailPage() {
 
       // No existing request, create new one
       const { error } = await supabase
-        .from('join_requests')
+        .from('project_join_requests' as any)
         .insert({
           project_id: id,
           user_id: user.id,

@@ -1,16 +1,31 @@
 # Duplicate Join Request Fix ✅
 
-## Problem
+## Problem 1: Duplicate Key Error
 Users were getting this error when trying to send a join request:
 ```
 duplicate key value violates unique constraint 
 "project_join_requests_project_id_user_id_key"
 ```
 
-## Root Cause
+## Problem 2: Requests Not Showing in Dashboard
+After re-sending a rejected request, the owner couldn't see it in their dashboard.
+
+## Root Causes
+
+### Issue 1: No Duplicate Check
 The `join_requests` table has a **unique constraint** on `(project_id, user_id)` to prevent duplicate requests. However, the code was not checking if a request already existed before trying to insert a new one.
 
+### Issue 2: Table Name Inconsistency
+Different parts of the codebase were using different table names:
+- **ProjectShowcase.tsx**: Used `project_join_requests` ✅
+- **ProjectDetailPage.tsx**: Used `join_requests` ❌
+- **DashboardPage.tsx**: Mixed both - fetched from `project_join_requests` but updated `join_requests` ❌
+
+The actual database table is `project_join_requests`, so all code needed to be updated to use this consistently.
+
 ## Solution
+
+### Part 1: Added Duplicate Checking
 Updated both places where join requests are created to:
 
 1. **Check if request already exists** before inserting
@@ -20,19 +35,32 @@ Updated both places where join requests are created to:
    - `approved` → Show "already approved" message
 3. **Handle race conditions** by catching duplicate key errors (code `23505`)
 
+### Part 2: Standardized Table Names
+Changed all references from `join_requests` to `project_join_requests`:
+
 ## Files Modified
 
 ### 1. `/src/pages/ProjectDetailPage.tsx`
-Updated `handleJoinRequest()` function:
-- Added check for existing request
+**Changes:**
+- Changed `join_requests` → `project_join_requests` (3 locations)
+- Updated `handleJoinRequest()` function with duplicate checking
+- Updated `fetchProjectDetails()` to use correct table
 - Added status-based logic
 - Added duplicate key error handling
 
 ### 2. `/src/components/ProjectShowcase.tsx`
-Updated `handleRequestToJoin()` function:
-- Added check for existing request
+**Changes:**
+- Already using `project_join_requests` ✅
+- Updated `handleRequestToJoin()` function with duplicate checking
 - Added status-based logic
 - Added duplicate key error handling
+
+### 3. `/src/pages/DashboardPage.tsx`
+**Changes:**
+- Changed `join_requests` → `project_join_requests` (3 locations)
+- Updated `handleAcceptRequest()` to use correct table
+- Updated `handleRejectRequest()` to use correct table
+- Removed RPC call dependency for rejection
 
 ## Behavior After Fix
 
