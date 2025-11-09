@@ -114,6 +114,46 @@ export default function ProjectDetailPage() {
     if (!user || !id) return;
 
     try {
+      // First, check if a request already exists
+      const { data: existingRequest } = await supabase
+        .from('join_requests')
+        .select('*')
+        .eq('project_id', id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingRequest) {
+        // If request exists and is pending
+        if (existingRequest.status === 'pending') {
+          toast.info('You have already sent a join request for this project');
+          setHasRequested(true);
+          return;
+        }
+        // If request was rejected, allow them to try again by updating the existing request
+        if (existingRequest.status === 'rejected') {
+          const { error: updateError } = await supabase
+            .from('join_requests')
+            .update({ 
+              status: 'pending',
+              created_at: new Date().toISOString()
+            })
+            .eq('id', existingRequest.id);
+
+          if (updateError) throw updateError;
+
+          toast.success('Join request re-sent!');
+          setHasRequested(true);
+          return;
+        }
+        // If already approved
+        if (existingRequest.status === 'approved') {
+          toast.info('Your request has already been approved');
+          setHasRequested(true);
+          return;
+        }
+      }
+
+      // No existing request, create new one
       const { error } = await supabase
         .from('join_requests')
         .insert({
@@ -121,11 +161,20 @@ export default function ProjectDetailPage() {
           user_id: user.id,
         });
 
-      if (error) throw error;
+      if (error) {
+        // Handle duplicate key error gracefully (race condition)
+        if (error.code === '23505') {
+          toast.info('You have already sent a join request for this project');
+          setHasRequested(true);
+          return;
+        }
+        throw error;
+      }
 
       toast.success('Join request sent!');
       setHasRequested(true);
     } catch (error: any) {
+      console.error('Join request error:', error);
       toast.error(error.message || 'Failed to send request');
     }
   };

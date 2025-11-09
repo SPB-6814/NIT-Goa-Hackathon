@@ -130,6 +130,61 @@ export const ProjectShowcase = ({ selectedFilter = 'All' }: ProjectShowcaseProps
 
     setIsSubmitting(true);
     try {
+      // First, check if a request already exists
+      const { data: existingRequest } = await supabase
+        .from('project_join_requests' as any)
+        .select('*')
+        .eq('project_id', selectedProject.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingRequest) {
+        // If request exists and is pending
+        if (existingRequest.status === 'pending') {
+          toast({
+            title: 'Request Already Sent',
+            description: 'You have already sent a join request for this project.',
+          });
+          setSelectedProject(null);
+          setRequestMessage('');
+          return;
+        }
+        // If request was rejected, allow them to try again by updating the existing request
+        if (existingRequest.status === 'rejected') {
+          const { error: updateError } = await supabase
+            .from('project_join_requests' as any)
+            .update({ 
+              status: 'pending',
+              message: requestMessage,
+              created_at: new Date().toISOString()
+            })
+            .eq('id', existingRequest.id);
+
+          if (updateError) throw updateError;
+
+          toast({
+            title: 'Request Re-sent!',
+            description: 'Your join request has been sent again to the project owner.',
+          });
+
+          setSelectedProject(null);
+          setRequestMessage('');
+          fetchProjects();
+          return;
+        }
+        // If already approved
+        if (existingRequest.status === 'approved') {
+          toast({
+            title: 'Already Approved',
+            description: 'Your request has already been approved. You are a member of this project.',
+          });
+          setSelectedProject(null);
+          setRequestMessage('');
+          return;
+        }
+      }
+
+      // No existing request, create new one
       const { error } = await supabase
         .from('project_join_requests' as any)
         .insert({
@@ -139,7 +194,20 @@ export const ProjectShowcase = ({ selectedFilter = 'All' }: ProjectShowcaseProps
           status: 'pending',
         });
 
-      if (error) throw error;
+      if (error) {
+        // Handle duplicate key error gracefully (race condition)
+        if (error.code === '23505') {
+          toast({
+            title: 'Request Already Sent',
+            description: 'You have already sent a join request for this project.',
+          });
+          setSelectedProject(null);
+          setRequestMessage('');
+          fetchProjects();
+          return;
+        }
+        throw error;
+      }
 
       toast({
         title: 'Request Sent!',
