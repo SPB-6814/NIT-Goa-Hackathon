@@ -60,6 +60,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [collaborativeProjects, setCollaborativeProjects] = useState<any[]>([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -131,15 +132,36 @@ export default function ProfilePage() {
   };
 
   const fetchProfile = async () => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching profile:', error);
+      return;
+    }
 
     if (data) {
       const profileData = data as Profile;
+      console.log('Fetched profile data:', {
+        experience: profileData.experience,
+        achievements: profileData.achievements,
+        projects: profileData.projects
+      });
+      
       setProfile(profileData);
 
       const exp = parseExperience(profileData.experience);
       const ach = parseAchievements(profileData.achievements);
       const proj = parseProjects(profileData.projects);
+
+      console.log('Parsed data:', {
+        experience: exp,
+        achievements: ach,
+        projects: proj
+      });
 
       setEditForm({
         username: profileData.username,
@@ -164,9 +186,44 @@ export default function ProfilePage() {
     if (id) {
       fetchProfile();
       fetchUserPosts();
+      fetchCollaborativeProjects();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const fetchCollaborativeProjects = async () => {
+    if (!id) return;
+    
+    try {
+      // Fetch projects where user is owner
+      const { data: ownedProjects, error: ownedError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('owner_id', id);
+
+      // Fetch projects where user is a member
+      const { data: memberProjects, error: memberError } = await supabase
+        .from('project_members')
+        .select(`
+          projects (*)
+        `)
+        .eq('user_id', id);
+
+      const allProjects = [
+        ...(ownedProjects || []),
+        ...(memberProjects?.map((m: any) => m.projects).filter(Boolean) || [])
+      ];
+
+      // Remove duplicates based on project id
+      const uniqueProjects = allProjects.filter((project, index, self) =>
+        index === self.findIndex((p) => p.id === project.id)
+      );
+
+      setCollaborativeProjects(uniqueProjects);
+    } catch (error) {
+      console.error('Error fetching collaborative projects:', error);
+    }
+  };
 
   const fetchUserPosts = async () => {
     if (!id) return;
@@ -321,18 +378,26 @@ export default function ProfilePage() {
         updatePayload.projects = projectsPayload;
       }
 
-      const { data: updateData, error } = await supabase.from('profiles').update(updatePayload).eq('id', id);
+      const { data: updateData, error } = await supabase
+        .from('profiles')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
 
       if (error) {
         console.error('Profile update error', error);
         throw error;
       }
 
+      console.log('Profile updated successfully:', updateData);
       toast.success('Profile updated!');
       setIsEditing(false);
       setAvatarFile(null);
       setAvatarPreview(null);
-      fetchProfile();
+      
+      // Force refetch to get fresh data
+      await fetchProfile();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       toast.error(msg || 'Failed to update profile');
@@ -692,6 +757,55 @@ export default function ProfilePage() {
                   })()}
                 </div>
               )}
+            </section>
+
+            {/* Collaborative Projects (from projects table) */}
+            <section>
+              <h3 className="font-semibold mb-2">Collaborative Projects</h3>
+              <div className="space-y-3">
+                {collaborativeProjects.length > 0 ? (
+                  collaborativeProjects.map((project: any) => (
+                    <Card 
+                      key={project.id} 
+                      className="p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => navigate(`/projects/${project.id}`)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-bold text-lg mb-1">{project.title}</h4>
+                          <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                            {project.description}
+                          </p>
+                          {project.skills_needed && project.skills_needed.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {project.skills_needed.slice(0, 5).map((skill: string, idx: number) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {skill}
+                                </Badge>
+                              ))}
+                              {project.skills_needed.length > 5 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{project.skills_needed.length - 5} more
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {project.owner_id === id && (
+                          <Badge variant="default" className="ml-2">Owner</Badge>
+                        )}
+                        {project.owner_id !== id && (
+                          <Badge variant="outline" className="ml-2">Collaborator</Badge>
+                        )}
+                      </div>
+                    </Card>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No collaborative projects yet. {isOwnProfile && "Join or create a project to get started!"}
+                  </p>
+                )}
+              </div>
             </section>
 
             {/* Achievements */}

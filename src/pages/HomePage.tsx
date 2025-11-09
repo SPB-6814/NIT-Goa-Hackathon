@@ -150,7 +150,7 @@ export default function HomePage() {
                 Join exciting projects from fellow students
               </p>
               <Separator className="mb-4" />
-              <ProjectShowcase />
+              <ProjectShowcase selectedFilter={selectedFilter} />
             </div>
           </div>
         </div>

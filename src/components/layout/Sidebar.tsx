@@ -1,4 +1,4 @@
-import { Home, Calendar, Search, FolderKanban, Bell, Settings, Plus, PenSquare, User, LogOut, Map } from 'lucide-react';
+import { Home, Calendar, Search, FolderKanban, Bell, Plus, PenSquare, User, LogOut, Map } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
@@ -20,6 +20,7 @@ export const Sidebar = () => {
   const [showPostForm, setShowPostForm] = useState(false);
   const { user, signOut } = useAuth();
   const [username, setUsername] = useState<string>('');
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // Fetch username from profiles table
   useEffect(() => {
@@ -37,6 +38,46 @@ export const Sidebar = () => {
     }
   }, [user?.id]);
 
+  // Fetch unread notifications count
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchUnreadCount = async () => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+
+      if (!error) {
+        setUnreadCount(data?.length || 0);
+      }
+    };
+
+    fetchUnreadCount();
+
+    // Set up real-time subscription for notifications
+    const channel = supabase
+      .channel('notifications-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          fetchUnreadCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const navItems = [
     { title: 'Map View', url: '/map', icon: Map },
     { title: 'Home', url: '/', icon: Home },
@@ -44,7 +85,6 @@ export const Sidebar = () => {
     { title: 'Search', url: '/search', icon: Search },
     { title: 'Active Projects', url: '/dashboard', icon: FolderKanban },
     { title: 'Notifications', url: '/notifications', icon: Bell },
-    { title: 'Settings', url: '/settings', icon: Settings },
   ];
 
   return (
@@ -84,11 +124,16 @@ export const Sidebar = () => {
             <NavLink
               key={item.url}
               to={item.url}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all duration-200 mb-1.5 group"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all duration-200 mb-1.5 group relative"
               activeClassName="bg-primary/10 text-primary font-semibold shadow-sm border-l-4 border-primary"
             >
               <item.icon className="h-5 w-5 group-hover:scale-110 transition-transform duration-200" />
               <span className="font-medium">{item.title}</span>
+              {item.title === 'Notifications' && unreadCount > 0 && (
+                <span className="ml-auto bg-destructive text-destructive-foreground text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center animate-pulse">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

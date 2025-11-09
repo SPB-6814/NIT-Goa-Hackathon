@@ -4,6 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -15,6 +16,7 @@ interface Post {
   user_id: string;
   content: string;
   images: string[];
+  tags?: string[];
   created_at: string;
   profiles: {
     username: string;
@@ -176,6 +178,16 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       <CardContent className="space-y-4">
         {post.content && (
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
+        )}
+
+        {post.tags && post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {post.tags.map((tag, idx) => (
+              <Badge key={idx} variant="secondary" className="text-xs">
+                {tag}
+              </Badge>
+            ))}
+          </div>
         )}
 
         {post.images && post.images.length > 0 && (

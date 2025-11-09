@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { LayoutGrid, CalendarDays, ArrowLeft, Sparkles } from 'lucide-react';
 import { EventCard } from '@/components/EventCard';
@@ -6,6 +6,7 @@ import { EventsCalendar } from '@/components/EventsCalendar';
 import { EventPosterModal } from '@/components/EventPosterModal';
 import { DateEventsModal } from '@/components/DateEventsModal';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Event {
   id: string;
@@ -96,7 +97,7 @@ const HARDCODED_EVENTS: Event[] = [
 
 export default function EventsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  const [events] = useState<Event[]>(HARDCODED_EVENTS);
+  const [events, setEvents] = useState<Event[]>(HARDCODED_EVENTS);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>(HARDCODED_EVENTS);
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -104,6 +105,45 @@ export default function EventsPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDateEvents, setSelectedDateEvents] = useState<Event[]>([]);
   const [showDateEventsModal, setShowDateEventsModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch events from database on mount
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('event_date', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching events:', error);
+        // Use hardcoded events as fallback
+        console.log('Using hardcoded events as fallback');
+        setEvents(HARDCODED_EVENTS);
+        setFilteredEvents(HARDCODED_EVENTS);
+      } else if (data && data.length > 0) {
+        // Use database events
+        setEvents(data);
+        setFilteredEvents(data);
+      } else {
+        // No events in database, use hardcoded
+        console.log('No events in database, using hardcoded events');
+        setEvents(HARDCODED_EVENTS);
+        setFilteredEvents(HARDCODED_EVENTS);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      setEvents(HARDCODED_EVENTS);
+      setFilteredEvents(HARDCODED_EVENTS);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Filter events when filter changes
   const handleFilterChange = (filter: string) => {
@@ -206,7 +246,12 @@ export default function EventsPage() {
           </div>
 
           {/* Events Grid */}
-          {filteredEvents.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              <p className="text-muted-foreground mt-4">Loading events...</p>
+            </div>
+          ) : filteredEvents.length === 0 ? (
             <div className="text-center py-12">
               <Sparkles className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
               <p className="text-muted-foreground text-lg">

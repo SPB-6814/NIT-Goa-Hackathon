@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Database Migration Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Database Migration Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Replace these with your actual Supabase credentials
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        async function testDatabase() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<p>Testing database tables...</p>';
+            
+            // Test 1: Check if events table exists
+            try {
+                const { data: events, error: eventsError } = await supabaseClient
+                    .from('events')
+                    .select('id, title')
+                    .limit(5);
+                
+                if (eventsError) {
+                    results.innerHTML += `<p style="color: red;">❌ Events table ERROR: ${eventsError.message}</p>`;
+                } else {
+                    results.innerHTML += `<p style="color: green;">✅ Events table exists (${events?.length || 0} events found)</p>`;
+                    if (events && events.length > 0) {
+                        results.innerHTML += `<pre>${JSON.stringify(events, null, 2)}</pre>`;
+                    }
+                }
+            } catch (e) {
+                results.innerHTML += `<p style="color: red;">❌ Events table EXCEPTION: ${e.message}</p>`;
+            }
+            
+            // Test 2: Check if event_interests table exists
+            try {
+                const { data: interests, error: interestsError } = await supabaseClient
+                    .from('event_interests')
+                    .select('id')
+                    .limit(1);
+                
+                if (interestsError) {
+                    results.innerHTML += `<p style="color: red;">❌ Event_interests table ERROR: ${interestsError.message}</p>`;
+                } else {
+                    results.innerHTML += `<p style="color: green;">✅ Event_interests table exists</p>`;
+                }
+            } catch (e) {
+                results.innerHTML += `<p style="color: red;">❌ Event_interests table EXCEPTION: ${e.message}</p>`;
+            }
+            
+            // Test 3: Check if notifications table exists
+            try {
+                const { data: notifications, error: notificationsError } = await supabaseClient
+                    .from('notifications')
+                    .select('id')
+                    .limit(1);
+                
+                if (notificationsError) {
+                    results.innerHTML += `<p style="color: red;">❌ Notifications table ERROR: ${notificationsError.message}</p>`;
+                } else {
+                    results.innerHTML += `<p style="color: green;">✅ Notifications table exists</p>`;
+                }
+            } catch (e) {
+                results.innerHTML += `<p style="color: red;">❌ Notifications table EXCEPTION: ${e.message}</p>`;
+            }
+            
+            // Test 4: Check if teammate_matches table exists
+            try {
+                const { data: matches, error: matchesError } = await supabaseClient
+                    .from('teammate_matches')
+                    .select('id')
+                    .limit(1);
+                
+                if (matchesError) {
+                    results.innerHTML += `<p style="color: red;">❌ Teammate_matches table ERROR: ${matchesError.message}</p>`;
+                } else {
+                    results.innerHTML += `<p style="color: green;">✅ Teammate_matches table exists</p>`;
+                }
+            } catch (e) {
+                results.innerHTML += `<p style="color: red;">❌ Teammate_matches table EXCEPTION: ${e.message}</p>`;
+            }
+            
+            results.innerHTML += '<hr><h2>Conclusion:</h2>';
+            results.innerHTML += '<p>If you see ❌ errors above, you need to apply the database migration!</p>';
+            results.innerHTML += '<p>Follow the instructions in <code>APPLY_MIGRATION.md</code></p>';
+        }
+        
+        testDatabase();
+    </script>
+</body>
+</html>

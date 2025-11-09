@@ -3,10 +3,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { ImagePlus, X } from 'lucide-react';
+import { ImagePlus, X, Tag } from 'lucide-react';
+
+const POST_TAGS = ['Technical', 'Cultural', 'Academic', 'Social', 'Sports', 'Other'];
 
 interface CreatePostDialogProps {
   open: boolean;
@@ -19,6 +22,7 @@ export function CreatePostDialog({ open, onOpenChange, onPostCreated }: CreatePo
   const [content, setContent] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,6 +47,14 @@ export function CreatePostDialog({ open, onOpenChange, onPostCreated }: CreatePo
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
     setPreviews(previews.filter((_, i) => i !== index));
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
   };
 
   const uploadImages = async (): Promise<string[]> => {
@@ -79,6 +91,11 @@ export function CreatePostDialog({ open, onOpenChange, onPostCreated }: CreatePo
       return;
     }
 
+    if (selectedTags.length === 0) {
+      toast.error('Please select at least one tag');
+      return;
+    }
+
     if (!user) {
       toast.error('You must be signed in to create a post');
       return;
@@ -95,6 +112,7 @@ export function CreatePostDialog({ open, onOpenChange, onPostCreated }: CreatePo
         user_id: user.id,
         content: content.trim(),
         images: imageUrls,
+        tags: selectedTags,
       });
 
       if (error) throw error;
@@ -103,6 +121,7 @@ export function CreatePostDialog({ open, onOpenChange, onPostCreated }: CreatePo
       setContent('');
       setImages([]);
       setPreviews([]);
+      setSelectedTags([]);
       onOpenChange(false);
       onPostCreated?.();
     } catch (error) {
@@ -173,6 +192,30 @@ export function CreatePostDialog({ open, onOpenChange, onPostCreated }: CreatePo
                   onChange={handleImageSelect}
                 />
               </label>
+            )}
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-2 mb-2">
+              <Tag className="h-4 w-4" />
+              Tags (Select at least one)
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {POST_TAGS.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant={selectedTags.includes(tag) ? 'default' : 'outline'}
+                  className="cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => toggleTag(tag)}
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+            {selectedTags.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Select tags to categorize your post
+              </p>
             )}
           </div>
 

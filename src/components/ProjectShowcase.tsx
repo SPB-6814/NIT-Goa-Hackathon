@@ -14,6 +14,7 @@ interface Project {
   title: string;
   description: string;
   skills_needed: string[];
+  tags?: string[];
   owner_id: string;
   created_at: string;
   profiles: {
@@ -24,8 +25,13 @@ interface Project {
   has_requested?: boolean;
 }
 
-export const ProjectShowcase = () => {
+interface ProjectShowcaseProps {
+  selectedFilter?: string;
+}
+
+export const ProjectShowcase = ({ selectedFilter = 'All' }: ProjectShowcaseProps) => {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [requestMessage, setRequestMessage] = useState('');
@@ -36,6 +42,18 @@ export const ProjectShowcase = () => {
   useEffect(() => {
     fetchProjects();
   }, [user]);
+
+  useEffect(() => {
+    // Filter projects when filter changes
+    if (selectedFilter === 'All') {
+      setFilteredProjects(projects);
+    } else {
+      const filtered = projects.filter(project => 
+        project.tags && project.tags.includes(selectedFilter)
+      );
+      setFilteredProjects(filtered);
+    }
+  }, [selectedFilter, projects]);
 
   const fetchProjects = async () => {
     if (!user) return;
@@ -151,11 +169,15 @@ export const ProjectShowcase = () => {
     );
   }
 
-  if (projects.length === 0) {
+  if (filteredProjects.length === 0) {
     return (
       <div className="text-center py-8">
         <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-        <p className="text-muted-foreground">No projects looking for collaborators</p>
+        <p className="text-muted-foreground">
+          {selectedFilter === 'All' 
+            ? 'No projects looking for collaborators' 
+            : `No ${selectedFilter} projects found`}
+        </p>
       </div>
     );
   }
@@ -163,7 +185,7 @@ export const ProjectShowcase = () => {
   return (
     <>
       <div className="space-y-4">
-        {projects.map((project) => (
+        {filteredProjects.map((project) => (
           <Card key={project.id} className="flex flex-col hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3">
               <CardTitle className="text-base md:text-lg line-clamp-1">{project.title}</CardTitle>
@@ -171,6 +193,15 @@ export const ProjectShowcase = () => {
             </CardHeader>
             <CardContent className="flex-1 pb-3">
               <div className="space-y-3">
+                {project.tags && project.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {project.tags.map((tag, idx) => (
+                      <Badge key={idx} variant="default" className="text-xs px-1.5 py-0.5">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-muted-foreground mb-1.5">Skills Needed:</p>
                   <div className="flex flex-wrap gap-1">

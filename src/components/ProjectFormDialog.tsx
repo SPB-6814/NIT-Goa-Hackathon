@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
+import { X, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+
+const PROJECT_TAGS = ['Technical', 'Cultural', 'Academic', 'Social', 'Sports', 'Other'];
 
 interface ProjectFormDialogProps {
   open: boolean;
@@ -20,6 +22,7 @@ export const ProjectFormDialog = ({ open, onOpenChange }: ProjectFormDialogProps
   const [description, setDescription] = useState('');
   const [skillInput, setSkillInput] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
 
@@ -34,9 +37,22 @@ export const ProjectFormDialog = ({ open, onOpenChange }: ProjectFormDialogProps
     setSkills(skills.filter(s => s !== skill));
   };
 
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (selectedTags.length === 0) {
+      toast.error('Please select at least one tag');
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -46,6 +62,7 @@ export const ProjectFormDialog = ({ open, onOpenChange }: ProjectFormDialogProps
           title,
           description,
           skills_needed: skills,
+          tags: selectedTags,
           owner_id: user.id,
         });
 
@@ -55,6 +72,7 @@ export const ProjectFormDialog = ({ open, onOpenChange }: ProjectFormDialogProps
       setTitle('');
       setDescription('');
       setSkills([]);
+      setSelectedTags([]);
       onOpenChange(false);
     } catch (error: any) {
       toast.error(error.message || 'Failed to create project');
@@ -123,6 +141,30 @@ export const ProjectFormDialog = ({ open, onOpenChange }: ProjectFormDialogProps
                 </Badge>
               ))}
             </div>
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-2 mb-2">
+              <Tag className="h-4 w-4" />
+              Project Tags (Select at least one)
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {PROJECT_TAGS.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant={selectedTags.includes(tag) ? 'default' : 'outline'}
+                  className="cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => toggleTag(tag)}
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+            {selectedTags.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Select tags to categorize your project
+              </p>
+            )}
           </div>
 
           <Button type="submit" disabled={isLoading} className="w-full">

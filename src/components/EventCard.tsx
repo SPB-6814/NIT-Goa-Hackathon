@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Star, Check } from 'lucide-react';
+import { Calendar, MapPin, Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,17 +40,20 @@ export function EventCard({ event, onPosterClick, onInterested }: EventCardProps
 
     try {
       const { data, error } = await supabase
-        .from('event_interests' as any)
+        .from('event_interests')
         .select('id')
         .eq('event_id', event.id)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (!error && data) {
-        setIsInterested(true);
+      if (error) {
+        console.error('Error checking interest:', error);
+        return;
       }
+
+      setIsInterested(!!data);
     } catch (error) {
-      // User hasn't marked interest yet
+      console.error('Exception checking interest:', error);
       setIsInterested(false);
     }
   };
@@ -62,16 +65,37 @@ export function EventCard({ event, onPosterClick, onInterested }: EventCardProps
     }
 
     if (isInterested) {
-      toast.info('You already marked interest in this event');
+      // Remove interest
+      setIsLoading(true);
+      try {
+        const { error } = await supabase
+          .from('event_interests')
+          .delete()
+          .eq('event_id', event.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        setIsInterested(false);
+        toast.success('Interest removed');
+      } catch (error: any) {
+        console.error('Error removing interest:', error);
+        toast.error('Failed to remove interest', {
+          description: error.message || 'Please try again',
+        });
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
 
+    // Mark interest
     setIsLoading(true);
 
     try {
       // Save interest to database
       const { error: insertError } = await supabase
-        .from('event_interests' as any)
+        .from('event_interests')
         .insert({
           event_id: event.id,
           user_id: user.id,
@@ -145,19 +169,19 @@ export function EventCard({ event, onPosterClick, onInterested }: EventCardProps
         </div>
 
         <Button
-          variant={isInterested ? 'outline' : 'gradient'}
+          variant={isInterested ? 'default' : 'gradient'}
           size="sm"
           className="w-full font-semibold shadow-glow-md hover:shadow-glow-lg"
           onClick={(e) => {
             e.stopPropagation();
             handleInterested();
           }}
-          disabled={isLoading || isInterested}
+          disabled={isLoading}
         >
           {isInterested ? (
             <>
-              <Check className="mr-2 h-4 w-4" />
-              Already Interested
+              <Star className="mr-2 h-4 w-4 fill-current" />
+              Interested
             </>
           ) : (
             <>

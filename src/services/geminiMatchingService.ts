@@ -7,6 +7,14 @@ interface UserProfile {
   skills: string[];
   interests: string[];
   bio?: string;
+  experience?: string;
+  college?: string;
+}
+
+interface EnhancedUserData {
+  profile: UserProfile;
+  posts: Array<{ content: string; tags?: string[] }>;
+  projects: Array<{ title: string; description: string; tags?: string[] }>;
 }
 
 interface MatchResult {
@@ -18,7 +26,7 @@ interface MatchResult {
   ai_reasoning: string;
 }
 
-const MATCH_THRESHOLD = 0.5;
+const MATCH_THRESHOLD = 0.3; // Lowered from 0.5 to allow matches with minimal data
 
 const getGeminiAPI = () => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -28,6 +36,289 @@ const getGeminiAPI = () => {
   return new GoogleGenerativeAI(apiKey);
 };
 
+// Enhanced basic matching for users with minimal data
+const analyzeBasicCompatibility = (
+  user1: UserProfile,
+  user2: UserProfile,
+  eventType?: string
+): MatchResult => {
+  console.log('[AI Match] Running basic compatibility analysis');
+  
+  // Check interests overlap
+  const matchingInterests = (user1.interests || []).filter(interest => 
+    (user2.interests || []).includes(interest)
+  );
+  
+  // Check skills overlap
+  const matchingSkills = (user1.skills || []).filter(skill => 
+    (user2.skills || []).includes(skill)
+  );
+  
+  // Check event type alignment
+  let eventTypeBonus = 0;
+  if (eventType && user1.interests && user2.interests) {
+    const eventTypeLower = eventType.toLowerCase();
+    const user1HasEventInterest = user1.interests.some(i => 
+      i.toLowerCase().includes(eventTypeLower) || eventTypeLower.includes(i.toLowerCase())
+    );
+    const user2HasEventInterest = user2.interests.some(i => 
+      i.toLowerCase().includes(eventTypeLower) || eventTypeLower.includes(i.toLowerCase())
+    );
+    if (user1HasEventInterest && user2HasEventInterest) {
+      eventTypeBonus = 0.2; // 20% bonus for event type alignment
+    }
+  }
+  
+  // Check college/location match
+  const sameCollege = user1.college && user2.college && user1.college === user2.college ? 0.1 : 0;
+  
+  // Calculate base score from overlaps
+  const totalInterests = Math.max(
+    (user1.interests?.length || 0),
+    (user2.interests?.length || 0),
+    1
+  );
+  const totalSkills = Math.max(
+    (user1.skills?.length || 0),
+    (user2.skills?.length || 0),
+    1
+  );
+  
+  const interestScore = matchingInterests.length / totalInterests;
+  const skillScore = matchingSkills.length / totalSkills;
+  
+  // Weighted average: interests 40%, skills 30%, event type 20%, college 10%
+  let matchScore = (interestScore * 0.4) + (skillScore * 0.3) + eventTypeBonus + sameCollege;
+  
+  // If they have ANY overlap, ensure minimum score of 0.3
+  if (matchingInterests.length > 0 || matchingSkills.length > 0) {
+    matchScore = Math.max(matchScore, 0.3);
+  }
+  
+  // Cap at 1.0
+  matchScore = Math.min(matchScore, 1.0);
+  
+  // Generate reasoning
+  let reasoning = '';
+  if (matchScore >= 0.5) {
+    reasoning = `Good potential match! `;
+  } else if (matchScore >= 0.3) {
+    reasoning = `Promising collaboration opportunity! `;
+  } else {
+    reasoning = `Potential for collaboration. `;
+  }
+  
+  if (matchingInterests.length > 0) {
+    reasoning += `Shared interests in ${matchingInterests.slice(0, 3).join(', ')}. `;
+  }
+  if (matchingSkills.length > 0) {
+    reasoning += `Common skills: ${matchingSkills.slice(0, 3).join(', ')}. `;
+  }
+  if (eventTypeBonus > 0) {
+    reasoning += `Both aligned with ${eventType} event type. `;
+  }
+  if (reasoning === '') {
+    reasoning = `Both interested in the same event and open to collaboration.`;
+  }
+
+  console.log('[AI Match] Basic match score:', matchScore, {
+    matchingInterests,
+    matchingSkills,
+    eventTypeBonus,
+    sameCollege
+  });
+
+  return {
+    user1_id: user1.id,
+    user2_id: user2.id,
+    match_score: matchScore,
+    matching_skills: matchingSkills,
+    matching_interests: matchingInterests,
+    ai_reasoning: reasoning.trim(),
+  };
+};
+
+// Fetch user's posts and projects for deeper analysis
+const fetchEnhancedUserData = async (userId: string): Promise<EnhancedUserData | null> => {
+  try {
+    // Fetch profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) throw profileError;
+
+    // Fetch user's posts
+    const { data: posts, error: postsError } = await supabase
+      .from('posts' as any)
+      .select('content, tags')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    // Fetch user's projects
+    const { data: projects, error: projectsError } = await supabase
+      .from('projects')
+      .select('title, description, tags')
+      .eq('owner_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    return {
+      profile: profile as UserProfile,
+      posts: posts || [],
+      projects: projects || [],
+    };
+  } catch (error) {
+    console.error('Error fetching enhanced user data:', error);
+    return null;
+  }
+};
+
+// Enhanced AI analysis with posts, projects, and experience
+export const analyzeEnhancedCompatibility = async (
+  userData1: EnhancedUserData,
+  userData2: EnhancedUserData,
+  eventType?: string
+): Promise<MatchResult> => {
+  try {
+    const user1 = userData1.profile;
+    const user2 = userData2.profile;
+
+    // Calculate data availability
+    const user1DataCount = (userData1.posts?.length || 0) + (userData1.projects?.length || 0);
+    const user2DataCount = (userData2.posts?.length || 0) + (userData2.projects?.length || 0);
+    const hasMinimalData = user1DataCount < 3 || user2DataCount < 3;
+
+    console.log('[AI Match] Data availability:', {
+      user1Posts: userData1.posts?.length || 0,
+      user1Projects: userData1.projects?.length || 0,
+      user2Posts: userData2.posts?.length || 0,
+      user2Projects: userData2.projects?.length || 0,
+      hasMinimalData
+    });
+
+    // If minimal data, use enhanced basic matching
+    if (hasMinimalData) {
+      console.log('[AI Match] Using enhanced basic matching due to minimal data');
+      return analyzeBasicCompatibility(user1, user2, eventType);
+    }
+
+    const genAI = getGeminiAPI();
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+    // Build comprehensive prompt with all available data
+    const user1Posts = userData1.posts?.map(p => p.content).join(' | ') || 'No posts yet';
+    const user2Posts = userData2.posts?.map(p => p.content).join(' | ') || 'No posts yet';
+    const user1Projects = userData1.projects?.map(p => p.title + ': ' + p.description).join(' | ') || 'No projects yet';
+    const user2Projects = userData2.projects?.map(p => p.title + ': ' + p.description).join(' | ') || 'No projects yet';
+
+    const prompt = `You are an AI matchmaking assistant for a student collaboration platform. Analyze these two users for potential teamwork compatibility ${eventType ? 'for a ' + eventType + ' event' : ''}.
+
+USER 1 - ${user1.full_name}:
+Profile:
+- Skills: ${user1.skills?.join(', ') || 'None listed'}
+- Interests: ${user1.interests?.join(', ') || 'None listed'}
+- Bio: ${user1.bio || 'Not provided'}
+- Experience: ${user1.experience || 'Not provided'}
+- College: ${user1.college || 'Not provided'}
+
+Recent Posts: ${user1Posts}
+
+Projects: ${user1Projects}
+
+---
+
+USER 2 - ${user2.full_name}:
+Profile:
+- Skills: ${user2.skills?.join(', ') || 'None listed'}
+- Interests: ${user2.interests?.join(', ') || 'None listed'}
+- Bio: ${user2.bio || 'Not provided'}
+- Experience: ${user2.experience || 'Not provided'}
+- College: ${user2.college || 'Not provided'}
+
+Recent Posts: ${user2Posts}
+
+Projects: ${user2Projects}
+
+---
+
+ANALYSIS CRITERIA:
+1. **Interest Alignment**: Do their interests and tags overlap? ${eventType ? 'Do they match the ' + eventType + ' event type?' : ''}
+2. **Skill Complementarity**: Do they have complementary or matching skills?
+3. **Communication Vibe**: Based on their posts and project descriptions, do they have similar communication styles and enthusiasm levels?
+4. **Experience Level**: Are they at compatible experience levels for productive collaboration?
+5. **Shared Goals**: Do their bios, posts, and projects suggest aligned goals and work ethics?
+
+Note: Be generous with scoring even if data is limited. Focus on potential for collaboration based on available information.
+
+Provide your analysis as JSON:
+{
+  "match_score": 0.75,
+  "matching_skills": ["JavaScript", "Python"],
+  "matching_interests": ["AI", "Web Development"],
+  "reasoning": "Detailed 2-3 sentence explanation of compatibility based on all available data."
+}`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    let jsonText = text.trim();
+    const jsonStart = jsonText.indexOf('{');
+    if (jsonStart !== -1) {
+      jsonText = jsonText.substring(jsonStart);
+      const endIndex = jsonText.lastIndexOf('}');
+      if (endIndex !== -1) {
+        jsonText = jsonText.substring(0, endIndex + 1);
+      }
+    }
+
+    const analysis = JSON.parse(jsonText.trim());
+
+    return {
+      user1_id: user1.id,
+      user2_id: user2.id,
+      match_score: Math.min(Math.max(analysis.match_score, 0), 1),
+      matching_skills: analysis.matching_skills || [],
+      matching_interests: analysis.matching_interests || [],
+      ai_reasoning: analysis.reasoning || 'No reasoning provided',
+    };
+  } catch (error) {
+    console.error('Error in enhanced compatibility analysis:', error);
+    
+    // Fallback to basic matching
+    const user1 = userData1.profile;
+    const user2 = userData2.profile;
+    const matchingSkills = (user1.skills || []).filter(skill => 
+      (user2.skills || []).includes(skill)
+    );
+    const matchingInterests = (user1.interests || []).filter(interest => 
+      (user2.interests || []).includes(interest)
+    );
+    
+    const totalMatches = matchingSkills.length + matchingInterests.length;
+    const totalItems = Math.max(
+      (user1.skills?.length || 0) + (user1.interests?.length || 0),
+      (user2.skills?.length || 0) + (user2.interests?.length || 0),
+      1
+    );
+    const matchScore = totalMatches / totalItems;
+
+    return {
+      user1_id: user1.id,
+      user2_id: user2.id,
+      match_score: matchScore,
+      matching_skills: matchingSkills,
+      matching_interests: matchingInterests,
+      ai_reasoning: 'Basic compatibility analysis (AI service unavailable)',
+    };
+  }
+};
+
+// Original function kept for backward compatibility
 export const analyzeTeammateCompatibility = async (
   user1: UserProfile,
   user2: UserProfile
@@ -95,6 +386,16 @@ export const findEventTeammates = async (eventId: string): Promise<void> => {
   console.log('[AI Match] 1. Starting findEventTeammates for eventId:', eventId);
 
   try {
+    // Fetch event details to get event type
+    const { data: eventData, error: eventDataError } = await supabase
+      .from('events')
+      .select('event_type')
+      .eq('id', eventId)
+      .single();
+
+    const eventType = eventData?.event_type || undefined;
+    console.log('[AI Match] Event type:', eventType);
+
     const { data: interests, error: interestsError } = await supabase
       .from('event_interests')
       .select('user_id')
@@ -113,41 +414,43 @@ export const findEventTeammates = async (eventId: string): Promise<void> => {
     }
 
     const userIds = interests.map((interest) => interest.user_id);
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', userIds);
-
-    if (profilesError) {
-      console.error('[AI Match] Error fetching profiles:', profilesError);
-      throw new Error('Failed to fetch profiles');
-    }
     
-    console.log('[AI Match] 3. Fetched user profiles:', profiles?.length || 0);
+    console.log('[AI Match] 3. Fetching enhanced user data for', userIds.length, 'users...');
 
-    if (!profiles) {
-      console.error('[AI Match] No profiles found');
+    // Fetch enhanced data for all users
+    const enhancedUserDataMap = new Map<string, EnhancedUserData>();
+    for (const userId of userIds) {
+      const userData = await fetchEnhancedUserData(userId);
+      if (userData) {
+        enhancedUserDataMap.set(userId, userData);
+      }
+    }
+
+    console.log('[AI Match] 4. Fetched enhanced data for', enhancedUserDataMap.size, 'users');
+
+    if (enhancedUserDataMap.size < 2) {
+      console.error('[AI Match] Not enough user data found');
       return;
     }
 
-    const profileMap = new Map(profiles.map((p) => [p.id, p]));
-
+    // Compare users pairwise with enhanced analysis
     for (let i = 0; i < interests.length; i++) {
       for (let j = i + 1; j < interests.length; j++) {
-        const user1 = profileMap.get(interests[i].user_id);
-        const user2 = profileMap.get(interests[j].user_id);
+        const userData1 = enhancedUserDataMap.get(interests[i].user_id);
+        const userData2 = enhancedUserDataMap.get(interests[j].user_id);
 
-        if (!user1 || !user2) {
-          console.warn('[AI Match] Could not find profile for one or both users in a pair. Skipping.');
+        if (!userData1 || !userData2) {
+          console.warn('[AI Match] Could not find data for one or both users. Skipping.');
           continue;
         }
 
-        console.log('[AI Match] 4. Comparing users:', user1.full_name, 'and', user2.full_name);
+        console.log('[AI Match] 5. Analyzing:', userData1.profile.full_name, 'and', userData2.profile.full_name);
 
+        // Check for existing match
         const { data: existingMatch, error: existingMatchError } = await supabase
           .from('teammate_matches')
           .select('id')
-          .or('and(user1_id.eq.' + user1.id + ',user2_id.eq.' + user2.id + '),and(user1_id.eq.' + user2.id + ',user2_id.eq.' + user1.id + ')')
+          .or('and(user1_id.eq.' + userData1.profile.id + ',user2_id.eq.' + userData2.profile.id + '),and(user1_id.eq.' + userData2.profile.id + ',user2_id.eq.' + userData1.profile.id + ')')
           .eq('event_id', eventId)
           .limit(1);
 
@@ -160,16 +463,18 @@ export const findEventTeammates = async (eventId: string): Promise<void> => {
           continue;
         }
 
-        const compatibility = await analyzeTeammateCompatibility(user1, user2);
-        console.log('[AI Match] 5. Compatibility score:', compatibility.match_score, compatibility);
+        // Use enhanced compatibility analysis
+        const compatibility = await analyzeEnhancedCompatibility(userData1, userData2, eventType);
+        console.log('[AI Match] 6. Enhanced compatibility score:', compatibility.match_score);
+        console.log('[AI Match] AI Reasoning:', compatibility.ai_reasoning);
 
         if (compatibility.match_score >= MATCH_THRESHOLD) {
-          console.log('[AI Match] 6. Match score is above threshold. Creating match...');
+          console.log('[AI Match] 7. Match score is above threshold. Creating match...');
           const { data: match, error: matchError } = await supabase
             .from('teammate_matches')
             .insert({
-              user1_id: user1.id,
-              user2_id: user2.id,
+              user1_id: userData1.profile.id,
+              user2_id: userData2.profile.id,
               event_id: eventId,
               compatibility_score: compatibility.match_score,
               ai_reasoning: compatibility.ai_reasoning,
@@ -184,7 +489,7 @@ export const findEventTeammates = async (eventId: string): Promise<void> => {
           }
 
           if (match) {
-            console.log('[AI Match] 7. Match record created successfully with ID:', match.id);
+            console.log('[AI Match] 8. Match record created successfully with ID:', match.id);
             await createMatchNotifications(match, eventId);
           }
         } else {
@@ -198,7 +503,7 @@ export const findEventTeammates = async (eventId: string): Promise<void> => {
 };
 
 export async function createMatchNotifications(match: any, eventId: string) {
-  console.log('[AI Match] 8. Inside createMatchNotifications for match ID:', match.id);
+  console.log('[AI Match] 9. Inside createMatchNotifications for match ID:', match.id);
   try {
     const { data: event, error: eventError } = await supabase
       .from('events')
@@ -246,7 +551,7 @@ export async function createMatchNotifications(match: any, eventId: string) {
       },
     ];
 
-    console.log('[AI Match] 9. Inserting notifications into database:', notificationsToInsert);
+    console.log('[AI Match] 10. Inserting notifications into database:', notificationsToInsert);
 
     const { error: notificationError } = await supabase
       .from('notifications')
@@ -257,7 +562,7 @@ export async function createMatchNotifications(match: any, eventId: string) {
       throw new Error('Failed to insert notifications');
     }
 
-    console.log('[AI Match] 10. Notifications created successfully!');
+    console.log('[AI Match] 11. Notifications created successfully!');
   } catch (error) {
     console.error('[AI Match] An error occurred in createMatchNotifications:', error);
   }

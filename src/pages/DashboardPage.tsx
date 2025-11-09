@@ -94,11 +94,58 @@ export default function DashboardPage() {
 
   const handleAcceptRequest = async (requestId: string) => {
     try {
-      const { error } = await (supabase.rpc as any)('approve_join_request', {
-        request_id: requestId,
-      });
+      // Get request details first
+      const { data: request, error: fetchError } = await supabase
+        .from('join_requests')
+        .select('project_id, user_id')
+        .eq('id', requestId)
+        .single();
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
+      if (!request) throw new Error('Request not found');
+
+      // Update request status to approved
+      const { error: updateError } = await supabase
+        .from('join_requests')
+        .update({ status: 'approved' })
+        .eq('id', requestId);
+
+      if (updateError) throw updateError;
+
+      // Add user to project_members table
+      const { error: memberError } = await supabase
+        .from('project_members')
+        .insert({
+          project_id: request.project_id,
+          user_id: request.user_id,
+        });
+
+      if (memberError) {
+        // If already a member, ignore the error
+        if (memberError.code !== '23505') { // 23505 is duplicate key violation
+          throw memberError;
+        }
+      }
+
+      // Create notification for the user
+      const { data: project, error: projectError } = await supabase
+        .from('projects')
+        .select('title')
+        .eq('id', request.project_id)
+        .single();
+
+      if (!projectError && project) {
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: request.user_id,
+            type: 'join_request_approved',
+            title: 'Join Request Accepted!',
+            message: `Your request to join "${project.title}" has been approved. You are now a collaborator!`,
+            link: `/projects/${request.project_id}`,
+            metadata: { projectId: request.project_id },
+          });
+      }
 
       toast.success('Request accepted! Member added to project.');
       fetchJoinRequests();
